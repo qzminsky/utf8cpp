@@ -3,7 +3,6 @@
 #include <algorithm>
 #include <cstdint>
 #include <exception>
-#include <functional>
 #include <initializer_list>
 #include <iostream>
 #include <limits>
@@ -466,7 +465,7 @@ namespace utf
                 return size() == 0;
             }
 
-
+            
             auto find(view const& vi) const -> iterator
             {
                 for (auto it = begin(); it != end(); ++it) {
@@ -480,7 +479,9 @@ namespace utf
                 return find(what.chars());
             }
 
-            auto find(std::function<bool(char_type)> const& pred) const -> iterator
+            template<typename Functor>
+            [[nodiscard]]
+            auto find(Functor const& pred) const -> iterator
             {
                 for (auto it = begin(); it != end(); ++it) {
                     if (pred(*it)) return it;
@@ -507,8 +508,9 @@ namespace utf
                 return contains(what.chars());
             }
 
+            template<typename Functor>
             [[nodiscard]]
-            auto contains(std::function<bool(char_type)> const& pred) const -> bool
+            auto contains(Functor&& pred) const -> bool
             {
                 return find(pred) != end();
             }
@@ -1241,8 +1243,9 @@ namespace utf
             return chars().contains(value);
         }
 
+        template<typename Functor>
         [[nodiscard]]
-        auto contains(std::function<bool(char_type)> const& pred) const -> bool
+        auto contains(Functor&& pred) const -> bool
         {
             return chars().contains(pred);
         }
@@ -1254,7 +1257,8 @@ namespace utf
          * 
          * \return Reference to the modified string
         */
-        auto remove(std::function<bool(char_type)> const& pred) -> string&
+        template<typename Functor>
+        auto remove(Functor const& pred) -> string&
         {
             for (auto it = chars().begin(); it._base() != end;) {
                 if (pred(*it)) {
