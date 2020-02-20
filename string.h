@@ -23,7 +23,7 @@ namespace utf
      *
      * \details Stores an Unicode string as a dynamically-allocated memory buffer
      * 
-     * \version 0.1.0
+     * \version 0.1.1
      * \date 2020/01/30
     */
     class string
@@ -510,7 +510,7 @@ namespace utf
 
             template<typename Functor>
             [[nodiscard]]
-            auto contains(Functor&& pred) const -> bool
+            auto contains(Functor const& pred) const -> bool
             {
                 return find(pred) != end();
             }
@@ -1245,7 +1245,7 @@ namespace utf
 
         template<typename Functor>
         [[nodiscard]]
-        auto contains(Functor&& pred) const -> bool
+        auto contains(Functor const& pred) const -> bool
         {
             return chars().contains(pred);
         }
