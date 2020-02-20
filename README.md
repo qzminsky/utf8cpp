@@ -16,7 +16,7 @@ The class `utf::string` describes a dynamically, array-based, contiguous storage
 2. `#include` it;
 3. Enjoy!
 
-⚠️ *Note that library requires C++17 support*
+> ⚠️ *Note that library requires C++17 support*
 
 ## Usage examples
 * Creating the string:
@@ -35,7 +35,8 @@ utf::string MyString3{ std::vector<uint8_t>{'B','y','t','e','s'} };
 utf::string Line{ "Il buono, il brutto, il cattivo" };
 
 // Using C++20 init-for
-for (auto view = Line.chars(); auto ch : view) {
+for (auto view = Line.chars(); auto ch : view)
+{
   std::cout << ch << std::endl;   // prints chars' code points
 }
 ```
