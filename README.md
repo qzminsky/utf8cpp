@@ -16,7 +16,7 @@ The class `utf::string` describes a dynamically, array-based, contiguous storage
 2. `#include` it;
 3. Enjoy!
 
-*Note that library requires C++17 support*
+⚠️ *Note that library requires C++17 support*
 
 ## Usage examples
 * Creating the string:
