@@ -7,7 +7,7 @@ The class `utf::string` describes a dynamically, array-based, contiguous storage
 ### Features
 * Dynamic length;
 * Methods chaining;
-* Fixed *"Unsigned size_type problem"* — `utf::string::size_type` is `ptrdiff_t`, unlike STL's `size_t`;
+* Fixed [*"Unsigned size_type problem"*](http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2019/p1227r1.html#motivation "What is this") — `utf::string::size_type` is `ptrdiff_t`, unlike STL's `size_t`;
 * Non-owning inner type for viewing and iteration — `utf::string::view` (also `utf::string_view`)...
 * ...and rights to view and change are completely divided between `string`s and `view`s by design!
 
