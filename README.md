@@ -30,12 +30,13 @@ utf::string MyString2{ 'L',0xf6,'w','e','L',0xe9,'o','p','a','r','d' };
 // Using vector of bytes (also UTF-8 representation)
 utf::string MyString3{ std::vector<uint8_t>{'B','y','t','e','s'} };
 ```
-* Iterating over characters (using C++20 init-for):
+* Iterating over characters:
 ```C++
 utf::string Line{ "Il buono, il brutto, il cattivo" };
 
+// Using C++20 init-for
 for (auto view = Line.chars(); auto ch : view) {
-  std::cout << ch << std::endl;   // Prints chars' code points
+  std::cout << ch << std::endl;   // prints chars' code points
 }
 ```
 * Chaining:
