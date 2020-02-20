@@ -11,6 +11,11 @@ The class `utf::string` describes a dynamically, array-based, contiguous storage
 * Non-owning inner type for viewing and iteration — `utf::string::view` (also `utf::string_view`)...
 * ...and rights to view and change are completely divided between `string`s and `view`s by design!
 
+### Installation
+1. Download and copy file `string.h` into your project headers' directory;
+2. `#include` it;
+3. Enjoy!
+
 ## Usage examples
 * Creating the string:
 ```C++
