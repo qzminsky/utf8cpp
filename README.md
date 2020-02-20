@@ -12,9 +12,11 @@ The class `utf::string` describes a dynamically, array-based, contiguous storage
 * ...and rights to view and change are completely divided between `string`s and `view`s by design!
 
 ### Installation
-1. Download and copy the file `string.h` into your C++17 project headers' directory;
+1. Download and copy the file `string.h` into your project headers' directory;
 2. `#include` it;
 3. Enjoy!
+
+*Note that library requires C++17 support*
 
 ## Usage examples
 * Creating the string:
