@@ -70,3 +70,6 @@ Line.chars(0, Line.chars().reverse().find(isspace).as_index()).to_string();
 * Length calculation — *linear* / **O(N)** as it requires iteration over every character in the string
 
 Note that replacement (`replace(...)`) is more complicated. It behaves like insertion if the new substring is longer (by its `size()`) than the replacement. Otherwise, the operation does not requires an extra memory and behaves like erasure; both cases have *linear* / **O(N)** time complexity.
+
+## License
+See the [LICENSE](LICENSE.md) file for license rights and limitations (MIT).
