@@ -13,6 +13,7 @@
 
 namespace utf
 {
+    // ANCHOR Exceptions classes
     using out_of_range = std::out_of_range;
     using invalid_argument = std::invalid_argument;
 
@@ -68,7 +69,7 @@ namespace utf
         {
             friend class string;
 
-            // An iterable range
+            // Iterable range
             pointer forward_begin = nullptr, forward_end = nullptr;
 
             // Direcion flag
@@ -103,6 +104,7 @@ namespace utf
 
             public:
 
+                /// There is no default constructor for an iterator
                 iterator() = delete;
                 iterator(iterator const&) = default;
                 iterator(iterator&&) = default;
@@ -132,6 +134,7 @@ namespace utf
                  * 
                  * \return Previous iterator's state as copy of it
                 */
+                [[nodiscard]]
                 auto operator ++ (int) -> iterator
                 {
                     auto tmp = *this; ++*this;
@@ -143,6 +146,7 @@ namespace utf
                  * 
                  * \return Previous iterator's state as copy of it
                 */
+                [[nodiscard]]
                 auto operator -- (int) -> iterator
                 {
                     auto tmp = *this; --*this;
@@ -186,13 +190,28 @@ namespace utf
                     return *this += -count;
                 }
 
-                // TODO Doc here
+                /**
+                 * \brief Offsets the copy of the iterator to the `count` characters ahead consider direction
+                 * 
+                 * \param count Number of hops
+                 * 
+                 * \return Iterator with corresponding changes
+                */
+                [[nodiscard]]
                 auto operator + (difference_type count) const -> iterator
                 {
                     iterator tmp = *this;
                     return tmp += count;
                 }
 
+                /**
+                 * \brief Offsets the copy of the iterator to the `count` characters back consider direction
+                 * 
+                 * \param count Number of hops
+                 * 
+                 * \return Iterator with corresponding changes
+                */
+                [[nodiscard]]
                 auto operator - (difference_type count) const -> iterator
                 {
                     iterator tmp = *this;
@@ -209,6 +228,7 @@ namespace utf
                  * 
                  * \note It also works with backward-directed views' iterators
                 */
+                [[nodiscard]]
                 auto operator - (iterator other) const -> difference_type
                 {
                     difference_type count = 0;
@@ -232,6 +252,7 @@ namespace utf
                  * 
                  * \throw out_of_range
                 */
+                [[nodiscard]]
                 auto operator * () const -> char_type
                 {
                     if (*this == parent->end()) {
@@ -249,6 +270,7 @@ namespace utf
                  * 
                  * \note This operator returns a value, not a reference
                 */
+                [[nodiscard]]
                 auto operator [] (difference_type index) const -> char_type
                 {
                     return *(*this + index);
@@ -259,9 +281,10 @@ namespace utf
                  * 
                  * \return Count of hops from the beginning of the view
                 */
+                [[nodiscard]]
                 auto as_index() const -> size_type
                 {
-                    return *this - view{*parent}.reverse().begin();
+                    return *this - view{ *parent }.reverse().begin();
                 }
 
                 /**
@@ -303,6 +326,7 @@ namespace utf
                 [[nodiscard]]
                 auto operator < (iterator const& other) const -> bool
                 {
+                    // TODO Add null-checking and throwing
                     return parent->is_forward ? (ptrbase < other.ptrbase) : (ptrbase > other.ptrbase);
                 }
 
@@ -322,12 +346,32 @@ namespace utf
                     return *this < other || *this == other;
                 }
 
+                /**
+                 * \brief Compares two iterators by great
+                 * 
+                 * \param other Iterator to compare with (right)
+                 * 
+                 * \return `true` if `*this` is greater than `other`; `false` otherwise
+                 * 
+                 * \details The iterator `X` is greater than another, if it is not possible to
+                 * make them equal each other by increasing `X` sequentally (more than 0 times)
+                */
                 [[nodiscard]]
                 auto operator > (iterator const& other) const -> bool
                 {
                     return !(*this <= other);
                 }
 
+                /**
+                 * \brief Compares two iterators by great or equality
+                 * 
+                 * \param other Iterator to compare with (right)
+                 * 
+                 * \return `true` if `*this` is greater than (or equal to) `other`; `false` otherwise
+                 * 
+                 * \details The iterator `X` is greater than another, if it is not possible to
+                 * make them equal each other by increasing `X` sequentally (or they are equal already)
+                */
                 [[nodiscard]]
                 auto operator >= (iterator const& other) const -> bool
                 {
@@ -385,14 +429,23 @@ namespace utf
                 }
             };
 
-
+            /// There is no default constructor for a view
             view() = delete;
+
             view(view const&) = default;
             view(view&&) = default;
 
             view(string& other) : forward_begin{ other.bytes() }, forward_end{ other.end }, is_forward{ true } {}
 
-            // TODO Doc here
+            /**
+             * \brief Constructs a view via pair of iterators
+             * 
+             * \param be Begin iterator
+             * \param en End iterator
+             * 
+             * \details In actual, checks the order of given iterators and may swap them
+             * to keep the valid range taking the forward direction into account
+            */
             view(iterator const& be, iterator const& en)
                 : forward_begin{ std::min(be._base(), en._base()) },
                   forward_end{ std::max(be._base(), en._base()) },
@@ -404,6 +457,7 @@ namespace utf
              * 
              * \return Copy of the original string in specified characters range
             */
+            [[nodiscard]]
             auto to_string() const -> string
             {
                 return *this;
@@ -423,6 +477,7 @@ namespace utf
             /**
              * \brief Returns the beginning iterator consider direction
             */
+            [[nodiscard]]
             auto begin() const -> iterator
             {
                 return is_forward ? iterator{ bytes(), this } : _forward_rbegin();
@@ -431,6 +486,7 @@ namespace utf
             /**
              * \brief Returns the ending iterator consider direction
             */
+            [[nodiscard]]
             auto end() const -> iterator
             {
                 return is_forward ? iterator{ forward_end, this } : _forward_rend();
@@ -445,12 +501,25 @@ namespace utf
                 return forward_begin;
             }
 
+            /**
+             * \brief Returns the size of the subspan's memory buffer
+             *
+             * \warning This isn't equivalent to `length()`, which returns the number of *characters*.
+             * Each UTF-8 character has a different size, from 1 to 4 bytes
+            */
             [[nodiscard]]
             auto size() const -> size_type
             {
                 return forward_end - bytes();
             }
 
+            /**
+             * \brief Returns the number of Unicode characters in the span
+             *
+             * \warning This isn't equivalent to `size()`, which returns exactly the number of *bytes*.
+             * Each UTF-8 character has a different size, from 1 to 4 bytes
+             * \note This is an `O(n)` operation as it requires iteration over every UTF-8 character of the view
+            */
             [[nodiscard]]
             auto length() const -> size_type
             {
@@ -466,7 +535,14 @@ namespace utf
                 return size() == 0;
             }
 
-            
+            /**
+             * \brief Search for the given substring inside the view
+             * 
+             * \param vi Substring to search (by its view)
+             * 
+             * \return Iterator to the first character of the substring or `end()` if it does not found
+            */
+            [[nodiscard]]
             auto find(view const& vi) const -> iterator
             {
                 for (auto it = begin(); it != end(); ++it) {
@@ -475,11 +551,26 @@ namespace utf
                 return end();
             }
 
+            /**
+             * \brief Search for the given substring inside the view
+             * 
+             * \param what Substring to search
+             * 
+             * \return Iterator to the first character of the substring or `end()` if it does not found
+            */
+            [[nodiscard]]
             auto find(string const& what) const -> iterator
             {
                 return find(what.chars());
             }
 
+            /**
+             * \brief Search for the first character in the view satisfying the predicate
+             * 
+             * \param pred Predicate to check
+             * 
+             * \return Iterator to the first occurence of the character
+            */
             [[nodiscard]]
             auto find(std::function<bool(char_type)> const& pred) const -> iterator
             {
@@ -489,6 +580,14 @@ namespace utf
                 return end();
             }
 
+            /**
+             * \brief Search for the first character in the view by its code point
+             * 
+             * \param value Character to search
+             * 
+             * \return Iterator to the first occurence of the given character
+            */
+            [[nodiscard]]
             auto find(char_type value) const -> iterator
             {
                 return find(
@@ -496,24 +595,44 @@ namespace utf
                 );
             }
 
+            /**
+             * \brief Predicate. Returns `trie` if the view contains specified substring (by its view)
+             * 
+             * \param vi View to check the substring's containing
+            */
             [[nodiscard]]
             auto contains(view const& vi) const -> bool
             {
                 return find(vi) != end();
             }
 
+            /**
+             * \brief Predicate. Returns `trie` if the view contains specified substring
+             * 
+             * \param what Substring to check its containing
+            */
             [[nodiscard]]
             auto contains(string const& what) const -> bool
             {
                 return contains(what.chars());
             }
 
+            /**
+             * \brief Predicate. Returns `trie` if the view contains characters satisfying the predicate
+             * 
+             * \param pred Predicate to check
+            */
             [[nodiscard]]
             auto contains(std::function<bool(char_type)> const& pred) const -> bool
             {
                 return find(pred) != end();
             }
 
+            /**
+             * \brief Predicate. Returns `trie` if the view contains at least single specified character
+             * 
+             * \param value Character to check its containing (given by its code point)
+            */
             [[nodiscard]]
             auto contains(char_type value) const -> bool
             {
@@ -547,6 +666,14 @@ namespace utf
                 return *this;
             }
 
+            /**
+             * \brief Inserts characters from the view's span into the stream
+             * 
+             * \param os Reference to the output stream
+             * \param vi View to insert
+             * 
+             * \return Reference to the output stream
+            */
             friend auto operator << (std::ostream& os, view const& vi) -> std::ostream&
             {
                 for (auto ch : vi) {
@@ -555,19 +682,53 @@ namespace utf
                 return os;
             }
 
+            /**
+             * \brief Compares two views by equality
+             * 
+             * \param other View to compare with
+             * 
+             * \return `true` if views' data is equivalent to each other; `false` otherwise
+            */
+            [[nodiscard]]
             auto operator == (view const& other) const -> bool
             {
                 return (size() == other.size()) && (memcmp(bytes(), other.bytes(), size()) == 0);
             }
+
+            /**
+             * \brief Compares two views by non-equality
+             * 
+             * \param other View to compare with
+             * 
+             * \return `true` if views' data differs from each other; `false` otherwise
+            */
+            [[nodiscard]]
             auto operator != (view const& other) const -> bool
             {
                 return !(*this == other);
             }
 
+            /**
+             * \brief Compares the view and the string by its contents equality
+             * 
+             * \param str String to compare with
+             * 
+             * \return `true` if view's data is equivalent to string's; `false` otherwise
+            */
+            [[nodiscard]]
             auto operator == (string const& str) const -> bool
             {
                 return (size() == str.size()) && (memcmp(bytes(), str.bytes(), size()) == 0);
             }
+
+            /**
+             * \brief Compares the view and the string by its contents non-equality
+             * 
+             * \param str String to compare with
+             * 
+             * \return `true` if view's data is differs from string's; `false` otherwise
+            */
+            [[nodiscard]]
             auto operator != (string const& str) const -> bool
             {
                 return !(*this == str);
@@ -576,6 +737,7 @@ namespace utf
             /**
              * \brief Predicate. Checks if the view contains only valid UTF-8 characters
             */
+            [[nodiscard]]
             auto is_valid() const -> bool
             {
                 for (auto ch = bytes(); ch != forward_end; ++ch)
@@ -640,7 +802,8 @@ namespace utf
          * 
          * \param other String to copy
         */
-        string(string const& other) : repr{ new uint8_t[other.size()] } {
+        string(string const& other) : repr{ new uint8_t[other.size()] }
+        {
             end = bytes() + other.size();
             memcpy(bytes(), other.bytes(), size());
         }
@@ -657,7 +820,8 @@ namespace utf
          * 
          * \param data Initializer list
         */
-        string(std::initializer_list<char_type> data) {
+        string(std::initializer_list<char_type> data)
+        {
             size_type size = 0; for (auto ch : data) {
                 size += _codebytes(ch);
             }
@@ -675,7 +839,8 @@ namespace utf
          * 
          * \note The reverse operation is `make_bytes()`
         */
-        string(std::vector<uint8_t> const& vec) : repr{ new uint8_t[vec.size()] } {
+        explicit string(std::vector<uint8_t> const& vec) : repr{ new uint8_t[vec.size()] }
+        {
             end = repr + vec.size();
             memcpy(bytes(), vec.data(), size());
         }
@@ -685,7 +850,8 @@ namespace utf
          * 
          * \param stds Source `std::string` to construct from
         */
-        string(std::string const& stds) : repr{ new uint8_t[stds.size()] } {
+        string(std::string const& stds) : repr{ new uint8_t[stds.size()] }
+        {
             end = repr + stds.size();
             memcpy(bytes(), stds.data(), size());
         }
@@ -693,16 +859,17 @@ namespace utf
         /**
          * \brief Converting constructor from C-string
          * 
-         * \param ascii Source C-string (`const char*`) to construct from
+         * \param cstr Source C-string (`const char*`) to construct from
         */
-        string(const char* ascii) { _bufinit((void*)ascii, strlen(ascii)); }
+        string(const char* cstr) { _bufinit((void*)cstr, strlen(cstr)); }
 
         /**
          * \brief Converting constructor from the view
          * 
          * \param vi View providing the set of characters to copy
         */
-        string(view const& vi) : repr{ new uint8_t[vi.size()] } {
+        string(view const& vi) : repr{ new uint8_t[vi.size()] }
+        {
             end = bytes() + vi.size(); auto ptr = bytes();
             for (auto ch : vi) {
                 ptr = _encode(ptr, ch);
@@ -740,11 +907,21 @@ namespace utf
             return *this;
         }
 
-        auto operator = (const char* ascii) -> string&
+        /**
+         * \brief Converting C-string assignment
+         * 
+         * \param cstr Source C-string (`const char*`) to assign
+         * 
+         * \return Reference to the left operand
+        */
+        auto operator = (const char* cstr) -> string&
         {
-            _bufinit((void*)ascii, strlen(ascii));
+            _bufinit((void*)cstr, strlen(cstr));
         }
 
+        /**
+         * \brief Deallocation of the memory buffer
+        */
         ~string() { delete[] bytes(); }
 
         /**
@@ -1235,13 +1412,22 @@ namespace utf
             return contains(what.chars());
         }
 
-        // TODO Doc here
+        /**
+         * \brief Predicate. Returns `trie` if the string contains at least single specified character
+         * 
+         * \param value Character to check its containing (given by its code point)
+        */
         [[nodiscard]]
         auto contains(char_type value) const -> bool
         {
             return chars().contains(value);
         }
 
+        /**
+         * \brief Predicate. Returns `trie` if the string contains characters satisfying the predicate
+         * 
+         * \param pred Predicate to check
+        */
         [[nodiscard]]
         auto contains(std::function<bool(char_type)> const& pred) const -> bool
         {
@@ -1251,7 +1437,7 @@ namespace utf
         /**
          * \brief Removes all characters satisfying the predicate
          * 
-         * \param pred Predicate to check
+         * \param pred Checking predicate
          * 
          * \return Reference to the modified string
         */
@@ -1397,7 +1583,14 @@ namespace utf
             return tmp;
         }
 
-        // TODO Doc here
+        /**
+         * \brief Reads UTF-8 characters from input stream until the first space
+         * 
+         * \param is Reference to the input stream
+         * \param str String to store characters
+         * 
+         * \return Reference to the input stream
+        */
         friend auto operator >> (std::istream& is, string& to) -> std::istream&
         {
             for (auto ch = read(is); !isspace(ch); ch = read(is)) to.push(ch);
@@ -1643,6 +1836,7 @@ namespace utf
      * 
      * \return Character's code point
     */
+    [[nodiscard]]
     auto read(std::istream& in) -> string::char_type
     {
         uint8_t ch = in.get(); string::char_type result = 0;
@@ -1650,15 +1844,15 @@ namespace utf
         if (string::is_ascii(ch)) return ch;
         else {
             if ((ch & 0xE0) == 0xC0) {
-                string::_encode(reinterpret_cast<uint8_t*>(&result), string::char_type(ch) << 8 | in.get());
+                string::_encode(reinterpret_cast<string::pointer>(&result), string::char_type(ch) << 8 | in.get());
                 result >>= 16;
             }
             else if ((ch & 0xF0) == 0xE0) {
-                string::_encode(reinterpret_cast<uint8_t*>(&result), string::char_type(ch) << 16 | in.get() | in.get());
+                string::_encode(reinterpret_cast<string::pointer>(&result), string::char_type(ch) << 16 | in.get() << 8 | in.get());
                 result >>= 8;
             }
             else {
-                string::_encode(reinterpret_cast<uint8_t*>(&result), string::char_type(ch) << 24 | in.get() | in.get() | in.get());
+                string::_encode(reinterpret_cast<string::pointer>(&result), string::char_type(ch) << 24 | in.get() << 16 | in.get() << 8 | in.get());
             }
         }
         
@@ -1669,20 +1863,27 @@ namespace utf
      * \brief Writes an UTF-8 character into an output stream
      * 
      * \param out Output stream to write into
-     * \param ch Charachter's code point
+     * \param value Character's code point
     */
-    auto write(std::ostream& out, string::char_type ch) -> void
+    auto write(std::ostream& out, string::char_type value) -> void
     {
-        switch (string::_codebytes(ch)) {
-        case 1: out << char(ch); break;
-        case 2: out << uint8_t(ch >> 6 & 0x1F | 0xC0) << uint8_t(ch & 0x3F | 0x80); break;
-        case 3: out << uint8_t(ch >> 12 & 0xF | 0xE0) << uint8_t(ch >> 6 & 0x3F | 0x80) << uint8_t(ch & 0x3F | 0x80); break;
-        case 4: out << uint8_t(ch >> 18 & 0x7 | 0xF0) << uint8_t(ch >> 12 & 0x3F | 0x80) << uint8_t(ch >> 6 & 0x3F | 0x80) << uint8_t(ch & 0x3F | 0x80); break;
+        switch (string::_codebytes(value)) {
+        case 1: out << char(value); break;
+        case 2: out << uint8_t(value >> 6 & 0x1F | 0xC0) << uint8_t(value & 0x3F | 0x80); break;
+        case 3: out << uint8_t(value >> 12 & 0xF | 0xE0) << uint8_t(value >> 6 & 0x3F | 0x80) << uint8_t(value & 0x3F | 0x80); break;
+        case 4: out << uint8_t(value >> 18 & 0x7 | 0xF0) << uint8_t(value >> 12 & 0x3F | 0x80) << uint8_t(value >> 6 & 0x3F | 0x80) << uint8_t(value & 0x3F | 0x80); break;
         }
     }
 }
 
-namespace std {
+namespace std
+{
+    /**
+     * \brief std::swap implementation for strings
+     * 
+     * \param s1 First string
+     * \param s2 Second string
+    */
     auto swap(utf::string& s1, utf::string& s2) noexcept -> void
     {
         s1.swap(s2);
