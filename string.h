@@ -326,7 +326,6 @@ namespace utf
                 [[nodiscard]]
                 auto operator < (iterator const& other) const -> bool
                 {
-                    // TODO Add null-checking and throwing
                     return parent->is_forward ? (ptrbase < other.ptrbase) : (ptrbase > other.ptrbase);
                 }
 
@@ -533,6 +532,15 @@ namespace utf
             auto is_empty() const -> bool
             {
                 return size() == 0;
+            }
+
+            /**
+             * \brief Predicate operator. Returns `true` if view is not empty
+            */
+            [[nodiscard]]
+            operator bool() const
+            {
+                return !is_empty();
             }
 
             /**
@@ -1187,6 +1195,15 @@ namespace utf
         auto is_empty() const -> bool
         {
             return size() == 0;
+        }
+
+        /**
+         * \brief Predicate operator. Returns `true` if string is not empty
+        */
+        [[nodiscard]]
+        operator bool() const
+        {
+            return !is_empty();
         }
 
         /**
