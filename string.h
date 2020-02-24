@@ -865,14 +865,14 @@ namespace utf
         }
 
         /**
-         * \brief Converting constructor from C-string
+         * \brief Converting constructor from a C-string
          * 
          * \param cstr Source C-string (`const char*`) to construct from
         */
         string(const char* cstr) { _bufinit((void*)cstr, strlen(cstr)); }
 
         /**
-         * \brief Converting constructor from the view
+         * \brief Converting constructor from a view
          * 
          * \param vi View providing the set of characters to copy
         */
@@ -1300,6 +1300,27 @@ namespace utf
             if (pos < 0) throw invalid_argument{ "Negative inserting position" };
 
             memcpy(_spread((chars().begin() + pos)._base(), size() + other.size()), other.bytes(), other.size());
+            return *this;
+        }
+
+        /**
+         * \brief Inserts another string into current
+         * 
+         * \param iter Inserting position (by iterator)
+         * \param other String to insert
+         * 
+         * \return Reference to the modified string
+         * 
+         * \throw out_of_range
+        */
+        auto insert(view::iterator const& iter, string const& other) -> string&
+        {
+            if (auto ptr = iter._base(); ptr < bytes() || ptr > end) {
+                throw out_of_range{ "Given iterator does not point into modifying string" };
+            }
+            else {
+                memcpy(_spread(ptr, size() + other.size()), other.bytes(), other.size());
+            }
             return *this;
         }
 
