@@ -1,4 +1,4 @@
-# utf8cpp [![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE.md)
+# utf8cpp [![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE.md) [![help](https://img.shields.io/badge/help-wiki-red)](../../wiki)
 
 Tiny, UTF-8-based string library with some modern improvements
 
