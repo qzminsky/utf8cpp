@@ -64,7 +64,7 @@ Line.chars(0, Line.chars().reverse().find(isspace).as_index()).to_string();
     * `front()`, `back()` — *constant* / **O(1)**
     * *N*-th (`get(N)`) — *linear* / **O(N)**
     * Back character with removal (`pop()`) — *constant* / **O(1)**
-  * Substring's view (by `chars(...)`, `left(...)`, `right(...)`) — *linear* / **O(N)**
+  * Substring's view (by `chars(...)`, `first(...)`, `last(...)`) — *linear* / **O(N)**
   * Entire string's view (`chars()`) — *constant* / **O(1)**
 * Insertion — *linear* / **O(N)**; requires extra memory reallocation
 * Search (`find(...)`, `contains(...)`) / erasure (`erase(...)`, `remove(...)`) — *linear* / **O(N)**
