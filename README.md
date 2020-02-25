@@ -1,5 +1,6 @@
-# utf8cpp
-Simple UTF-8-based string class with some modern improvements
+# utf8cpp [![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE.md)
+
+Tiny, UTF-8-based string library with some modern improvements
 
 ## Overview
 The class `utf::string` describes a dynamically, array-based, contiguous storage of UTF-8-encoded characters set.
