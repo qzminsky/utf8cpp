@@ -25,8 +25,8 @@ namespace utf
      *
      * \details Stores an Unicode string as a dynamically-allocated memory buffer
      * 
-     * \version 0.1.1
-     * \date 2020/01/30
+     * \version 0.1.2
+     * \date 2020/02/25
     */
     class string
     {
@@ -223,8 +223,8 @@ namespace utf
                  * 
                  * \param other Iterator pointing to begin of the range
                  * 
-                 * \return The number of increments needed to go from `other` to `*this`. If
-                 * `*this` cannot be reached from `other`, `string::npos` will be returned
+                 * \return The number of increments needed to go from `other` to `*this` if less.
+                 * Otherwise, returns the negative number of increments from `*this` to `other`
                  * 
                  * \note It also works with backward-directed views' iterators
                 */
@@ -269,6 +269,8 @@ namespace utf
                  * \return Code point of the character `*this + index`
                  * 
                  * \note This operator returns a value, not a reference
+                 * 
+                 * \throw out_of_range
                 */
                 [[nodiscard]]
                 auto operator [] (difference_type index) const -> char_type
@@ -971,7 +973,7 @@ namespace utf
         }
 
         /**
-         * \brief Creates an iterable object of `N` characters from left side of the string
+         * \brief Creates an iterable object of `N` first characters of the string
          *
          * \param N Number of slicing characters
          *
@@ -980,13 +982,13 @@ namespace utf
          * \note This is an `O(n)` operation
         */
         [[nodiscard]]
-        auto left(size_type N) const -> view
+        auto first(size_type N) const -> view
         {
             return chars(0, N);
         }
 
         /**
-         * \brief Creates an iterable object of `N` characters from right side of the string
+         * \brief Creates an iterable object of `N` last characters of the string
          *
          * \param N Number of slicing characters
          *
@@ -995,7 +997,7 @@ namespace utf
          * \note This is an `O(n)` operation
         */
         [[nodiscard]]
-        auto right(size_type N) const -> view
+        auto last(size_type N) const -> view
         {
             return chars().reverse().truncate(0, N).reverse();
         }
@@ -1158,7 +1160,7 @@ namespace utf
          * 
          * \param vi View to compare with
          * 
-         * \return `true` if `*this` is equivalent to `sview`'s data; `false` otherwise
+         * \return `true` if `*this` is equivalent to view's data; `false` otherwise
         */
         [[nodiscard]]
         auto operator == (view const& vi) const -> bool
@@ -1171,7 +1173,7 @@ namespace utf
          * 
          * \param vi View to compare with
          * 
-         * \return `true` if `*this` differs from `sview`'s data; `false` otherwise
+         * \return `true` if `*this` differs from view's data; `false` otherwise
         */
         [[nodiscard]]
         auto operator != (view const& vi) const -> bool
@@ -1209,7 +1211,7 @@ namespace utf
         /**
          * \brief Returns the number of Unicode characters in this string
          *
-         * \warning This isn't equivalent to `size()`, which returns exactly the number of *bytes*.
+         * \warning This isn't equivalent to `size()`, which returns exactly the number of _bytes_.
          * Each UTF-8 character has a different size, from 1 to 4 bytes
          * \note This is an `O(n)` operation as it requires iteration over every UTF-8 character of the string
         */
@@ -1222,7 +1224,7 @@ namespace utf
         /**
          * \brief Returns the size of the memory buffer used by the string
          *
-         * \warning This isn't equivalent to `length()`, which returns the number of *characters*.
+         * \warning This isn't equivalent to `length()`, which returns the number of _characters_.
          * Each UTF-8 character has a different size, from 1 to 4 bytes
         */
         [[nodiscard]]
@@ -1244,6 +1246,19 @@ namespace utf
         }
 
         /**
+         * \brief Appends a given view to the end of current string
+         *
+         * \param other Appending view
+         *
+         * \return Reference to the modified string
+        */
+        auto push(view const& vi) -> string&
+        {
+            memcpy(_expanded_copy(size() + vi.size()), vi.bytes(), vi.size());
+            return *this;
+        }
+
+        /**
          * \brief Appends a given string to the end of current
          *
          * \param other Appending string
@@ -1252,12 +1267,13 @@ namespace utf
         */
         auto push(string const& other) -> string&
         {
-            memcpy(_expanded_copy(size() + other.size()), other.bytes(), other.size());
-            return *this;
+            return push(other.chars());
         }
 
         /**
          * \brief Removes the last character from the string and returns its code point
+         * 
+         * \throw out_of_range
         */
         auto pop() -> char_type
         {
@@ -1271,17 +1287,56 @@ namespace utf
          * \brief Inserts the Unicode character into the string
          *
          * \param pos Inserting position
-         * \param ch Unicode character's code point
+         * \param value Unicode character's code point
          *
          * \return Reference to the modified string
          * 
          * \throw invalid_argument
         */
-        auto insert(size_type pos, char_type ch) -> string&
+        auto insert(size_type pos, char_type value) -> string&
         {
             if (pos < 0) throw invalid_argument{ "Negative inserting position" };
 
-            _encode(_spread((chars().begin() + pos)._base(), size() + _codebytes(ch)), ch);
+            _encode(_spread((chars().begin() + pos)._base(), size() + _codebytes(value)), value);
+            return *this;
+        }
+
+        /**
+         * \brief Inserts the Unicode character into the string
+         *
+         * \param pos Inserting position (by iterator)
+         * \param value Unicode character's code point
+         *
+         * \return Reference to the modified string
+         * 
+         * \throw out_of_range
+        */
+        auto insert(view::iterator const& iter, char_type value) -> string&
+        {
+            if (auto ptr = iter._base(); ptr < bytes() || ptr > end) {
+                throw out_of_range{ "Given iterator does not point into modifying string" };
+            }
+            else {
+                _encode(_spread(ptr, size() + _codebytes(value)), value);
+            }
+            return *this;
+        }
+        
+        /**
+         * \brief Inserts the view into current string
+         *
+         * \param pos Inserting position
+         * \param vi View to insert
+         *
+         * \return Reference to the modified string
+         * 
+         * \throw invalid_argument
+        */
+        auto insert(size_type pos, view const& vi) -> string&
+        {
+            if (pos < 0) throw invalid_argument{ "Negative inserting position" };
+
+            memcpy(_spread((chars().begin() + pos)._base(), size() + vi.size()), vi.bytes(), vi.size());
             return *this;
         }
 
@@ -1297,9 +1352,27 @@ namespace utf
         */
         auto insert(size_type pos, string const& other) -> string&
         {
-            if (pos < 0) throw invalid_argument{ "Negative inserting position" };
+            return insert(pos, other.chars());
+        }
 
-            memcpy(_spread((chars().begin() + pos)._base(), size() + other.size()), other.bytes(), other.size());
+        /**
+         * \brief Inserts the view into current string
+         * 
+         * \param iter Inserting position (by iterator)
+         * \param vi View to insert
+         * 
+         * \return Reference to the modified string
+         * 
+         * \throw out_of_range
+        */
+        auto insert(view::iterator const& iter, view const& vi) -> string&
+        {
+            if (auto ptr = iter._base(); ptr < bytes() || ptr > end) {
+                throw out_of_range{ "Given iterator does not point into modifying string" };
+            }
+            else {
+                memcpy(_spread(ptr, size() + vi.size()), vi.bytes(), vi.size());
+            }
             return *this;
         }
 
@@ -1315,13 +1388,7 @@ namespace utf
         */
         auto insert(view::iterator const& iter, string const& other) -> string&
         {
-            if (auto ptr = iter._base(); ptr < bytes() || ptr > end) {
-                throw out_of_range{ "Given iterator does not point into modifying string" };
-            }
-            else {
-                memcpy(_spread(ptr, size() + other.size()), other.bytes(), other.size());
-            }
-            return *this;
+            return insert(iter, other.chars());
         }
 
         /**
