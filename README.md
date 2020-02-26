@@ -1,5 +1,5 @@
 # 🅄🅃🅵:eight:🅲🄿🄿
-![version](https://img.shields.io/badge/version-0.1.2-brightgreen)
+![version](https://img.shields.io/badge/version-0.1.3-brightgreen)
 [![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE.md)
 [![help](https://img.shields.io/badge/help-wiki-red)](../../wiki)
 ![cpp-version](https://img.shields.io/badge/C%2B%2B-≥17-blue)
