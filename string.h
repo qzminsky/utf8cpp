@@ -25,8 +25,8 @@ namespace utf
      *
      * \details Stores an Unicode string as a dynamically-allocated memory buffer
      * 
-     * \version 0.1.2
-     * \date 2020/02/25
+     * \version 0.1.3
+     * \date 2020/02/26
     */
     class string
     {
@@ -506,7 +506,7 @@ namespace utf
              * \brief Returns the size of the subspan's memory buffer
              *
              * \warning This isn't equivalent to `length()`, which returns the number of *characters*.
-             * Each UTF-8 character has a different size, from 1 to 4 bytes
+             * Every UTF-8 character has a different size, from 1 to 4 bytes
             */
             [[nodiscard]]
             auto size() const -> size_type
@@ -518,7 +518,7 @@ namespace utf
              * \brief Returns the number of Unicode characters in the span
              *
              * \warning This isn't equivalent to `size()`, which returns exactly the number of *bytes*.
-             * Each UTF-8 character has a different size, from 1 to 4 bytes
+             * Every UTF-8 character has a different size, from 1 to 4 bytes
              * \note This is an `O(n)` operation as it requires iteration over every UTF-8 character of the view
             */
             [[nodiscard]]
@@ -965,6 +965,8 @@ namespace utf
          * \return `view`-wrapper over current string
          *
          * \note This is an `O(n)` operation
+         * 
+         * \throw invalid_argument
         */
         [[nodiscard]]
         auto chars(size_type shift, size_type N = npos) const -> view
@@ -980,6 +982,8 @@ namespace utf
          * \return `view`-wrapper over current string
          *
          * \note This is an `O(n)` operation
+         * 
+         * \throw invalid_argument
         */
         [[nodiscard]]
         auto first(size_type N) const -> view
@@ -995,6 +999,8 @@ namespace utf
          * \return `view`-wrapper over current string
          *
          * \note This is an `O(n)` operation
+         * 
+         * \throw invalid_argument
         */
         [[nodiscard]]
         auto last(size_type N) const -> view
@@ -1049,7 +1055,7 @@ namespace utf
         {
             if (index < 0) throw invalid_argument{ "Negative character index" };
 
-            return *(chars().begin() + index);
+            return chars().begin()[index];
         }
 
         /**
@@ -1304,7 +1310,7 @@ namespace utf
         /**
          * \brief Inserts the Unicode character into the string
          *
-         * \param pos Inserting position (by iterator)
+         * \param iter Inserting position (by iterator)
          * \param value Unicode character's code point
          *
          * \return Reference to the modified string
@@ -1313,7 +1319,7 @@ namespace utf
         */
         auto insert(view::iterator const& iter, char_type value) -> string&
         {
-            if (auto ptr = iter._base(); ptr < bytes() || ptr > end) {
+            if (auto ptr = iter._base(); _range_check(ptr)) {
                 throw out_of_range{ "Given iterator does not point into modifying string" };
             }
             else {
@@ -1367,7 +1373,7 @@ namespace utf
         */
         auto insert(view::iterator const& iter, view const& vi) -> string&
         {
-            if (auto ptr = iter._base(); ptr < bytes() || ptr > end) {
+            if (auto ptr = iter._base(); _range_check(ptr)) {
                 throw out_of_range{ "Given iterator does not point into modifying string" };
             }
             else {
@@ -1415,7 +1421,7 @@ namespace utf
         */
         auto erase(view::iterator const& iter) -> string&
         {
-            if (auto ptr = iter._base(); ptr < bytes() || ptr >= end) {
+            if (auto ptr = iter._base(); _range_check(ptr) && ptr != end) {
                 throw out_of_range{ "Given iterator does not point into modifying string" };
             }
             else {
@@ -1433,11 +1439,21 @@ namespace utf
          * \param vi View providing the range
          *
          * \return Reference to the modified string
+         * 
+         * \throw out_of_range
         */
         auto erase(view const& vi) -> string&
         {
-            memmove(vi.begin()._base(), vi.end()._base(), end - vi.end()._base());
-            end -= vi.size();
+            if (auto vi_be = vi.begin()._base(), vi_en = vi.end()._base();
+                _range_check(vi_be) ||
+                _range_check(vi_en))
+            {
+                throw out_of_range{ "Span error" };
+            }
+            else {
+                memmove(vi_be, vi_en, end - vi_en);
+                end -= vi.size();
+            }
 
             return *this;
         }
@@ -1452,6 +1468,8 @@ namespace utf
          *
          * \note In actual, just moves `[pos + N; length())` characters in memory buffer to `pos`,
          * i.e., it stays the same internal size. To free up unused memory, call `shrink_to_fit()` after
+         * 
+         * \throw invalid_argument
         */
         auto erase(size_type pos, size_type N = 1) -> string&
         {
@@ -1594,13 +1612,13 @@ namespace utf
         /**
          * \brief Removes all occurences of the substring in the current string
          * 
-         * \param other Substring to remove
+         * \param what Substring to remove
          * 
          * \return Reference to the modified string
         */
-        auto remove(string const& other) -> string&
+        auto remove(string const& what) -> string&
         {
-            return remove(other.chars());
+            return remove(what.chars());
         }
 
 
@@ -1611,11 +1629,17 @@ namespace utf
          * \param other String to replace
          *
          * \return Reference to the modified string object
+         * 
+         * \throw out_of_range
         */
         auto replace(view const& vi, string const& other) -> string&
         {
             auto rsize = vi.size(), osize = other.size();
             auto ptrpos = vi.begin()._base(), tail = vi.end()._base();
+
+            if (_range_check(ptrpos) || _range_check(tail)) {
+                throw out_of_range{ "Span error" };
+            }
 
             /*     pos     N           end
              *        \╭———˄——╮        ↓
@@ -1638,7 +1662,7 @@ namespace utf
              *         ptrpos                end
             */
             else if (rsize < osize) {
-                ptrpos = _spread(vi.begin()._base(), size() + osize - rsize);
+                ptrpos = _spread(ptrpos, size() + osize - rsize);
             }
 
             memcpy(ptrpos, other.bytes(), osize);
@@ -1655,6 +1679,8 @@ namespace utf
          * \param other String to replace
          *
          * \return Reference to the modified string object
+         * 
+         * \throw invalid_argument
         */
         auto replace(size_type pos, size_type N, string const& other) -> string&
         {
@@ -1866,6 +1892,18 @@ namespace utf
             else if (value < 0x800) return 2;
             else if (value < 0x10000) return 3;
             return 4;
+        }
+
+        /**
+         * \internal
+         * \brief Predicate. Checks if `ptr` points into the string's buffer
+         * 
+         * \param ptr Checking pointer
+        */
+        [[nodiscard]]
+        auto _range_check(pointer ptr) -> bool
+        {
+            return ptr < bytes() || ptr > end;
         }
 
         /**
