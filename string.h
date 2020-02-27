@@ -8,6 +8,7 @@
 #include <iostream>
 #include <limits>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -25,7 +26,7 @@ namespace utf
      *
      * \details Stores an Unicode string as a dynamically-allocated memory buffer
      * 
-     * \version 0.2.0
+     * \version 0.2.1
      * \date 2020/02/27
     */
     class string
@@ -665,6 +666,7 @@ namespace utf
              * 
              * \return Number of occurences
             */
+            [[nodiscard]]
             auto count(view const& vi) const -> size_type
             {
                 size_type cnt = 0;
@@ -683,6 +685,7 @@ namespace utf
              * 
              * \return Number of occurences
             */
+            [[nodiscard]]
             auto count(string const& what) const -> size_type
             {
                 return count(what.chars());
@@ -714,6 +717,7 @@ namespace utf
              * 
              * \return Number of occurences
             */
+            [[nodiscard]]
             auto count(char_type value) const -> size_type
             {
                 return count(
@@ -1604,6 +1608,7 @@ namespace utf
          * 
          * \return Number of occurences
         */
+        [[nodiscard]]
         auto count(view const& vi) const -> size_type
         {
             return chars().count(vi);
@@ -1616,6 +1621,7 @@ namespace utf
          * 
          * \return Number of occurences
         */
+        [[nodiscard]]
         auto count(string const& what) const -> size_type
         {
             return chars().count(what);
@@ -1641,6 +1647,7 @@ namespace utf
          * 
          * \return Number of occurences
         */
+        [[nodiscard]]
         auto count(char_type value) const -> size_type
         {
             return chars().count(value);
@@ -1862,7 +1869,12 @@ namespace utf
         */
         friend auto operator >> (std::istream& is, string& to) -> std::istream&
         {
-            for (auto ch = read(is); !isspace(ch); ch = read(is)) to.push(ch);
+            to.clear();
+
+            for (auto ch = read(is); is && !isspace(ch); ch = read(is))
+            {
+                to.push(ch);
+            }
             return is;
         }
 
@@ -2124,24 +2136,15 @@ namespace utf
     [[nodiscard]]
     auto read(std::istream& in) -> string::char_type
     {
-        uint8_t ch = in.get(); string::char_type result = 0;
+        std::remove_pointer<string::pointer>::type code[4] {};
 
-        if (string::is_ascii(ch)) return ch;
-        else {
-            if ((ch & 0xE0) == 0xC0) {
-                string::_encode(reinterpret_cast<string::pointer>(&result), string::char_type(ch) << 8 | in.get());
-                result >>= 16;
-            }
-            else if ((ch & 0xF0) == 0xE0) {
-                string::_encode(reinterpret_cast<string::pointer>(&result), string::char_type(ch) << 16 | in.get() << 8 | in.get());
-                result >>= 8;
-            }
-            else {
-                string::_encode(reinterpret_cast<string::pointer>(&result), string::char_type(ch) << 24 | in.get() << 16 | in.get() << 8 | in.get());
-            }
+        code[0] = in.get(); if (!in) return 0;
+
+        for (string::size_type i = 1; i < string::_charsize(code);)
+        {
+            code[i++] = in.get();
         }
-        
-        return result;
+        return string::_decode(code);
     }
 
     /**
@@ -2152,12 +2155,10 @@ namespace utf
     */
     auto write(std::ostream& out, string::char_type value) -> void
     {
-        switch (string::_codebytes(value)) {
-        case 1: out << char(value); break;
-        case 2: out << uint8_t(value >> 6 & 0x1F | 0xC0) << uint8_t(value & 0x3F | 0x80); break;
-        case 3: out << uint8_t(value >> 12 & 0xF | 0xE0) << uint8_t(value >> 6 & 0x3F | 0x80) << uint8_t(value & 0x3F | 0x80); break;
-        case 4: out << uint8_t(value >> 18 & 0x7 | 0xF0) << uint8_t(value >> 12 & 0x3F | 0x80) << uint8_t(value >> 6 & 0x3F | 0x80) << uint8_t(value & 0x3F | 0x80); break;
-        }
+        std::remove_pointer<string::pointer>::type code[5] {};
+        string::_encode(code, value);
+
+        out << code;
     }
 }
 
