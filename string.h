@@ -26,14 +26,14 @@ namespace utf
      *
      * \details Stores an Unicode string as a dynamically-allocated memory buffer
      * 
-     * \version 0.2.1
-     * \date 2020/02/27
+     * \version 0.2.2
+     * \date 2020/02/28
     */
     class string
     {
     public:
 
-        // ANCHOR Typedefs
+        // ANCHOR Member types
         using size_type = ptrdiff_t;
         using difference_type = ptrdiff_t;
         using pointer = uint8_t*;
@@ -740,11 +740,13 @@ namespace utf
                 if (off < 0) throw invalid_argument{ "Negative subspan offset" };
                 if (N < 0) throw invalid_argument{ "Negative subspan length" };
 
-                if (is_forward) {
+                if (is_forward)
+                {
                     forward_begin = (begin() + off)._base();
                     forward_end = (begin() + N)._base();
                 }
-                else {
+                else
+                {
                     forward_end = (iterator{ forward_end, this } + off)._base();
                     forward_begin = (iterator{ forward_end, this } + N)._base();
                 }
@@ -1863,17 +1865,23 @@ namespace utf
          * \brief Reads UTF-8 characters from input stream until the first space
          * 
          * \param is Reference to the input stream
-         * \param str String to store characters
+         * \param to String to store characters
          * 
          * \return Reference to the input stream
         */
         friend auto operator >> (std::istream& is, string& to) -> std::istream&
         {
-            to.clear();
+            auto tmp_size = to.size();
+            to.end = to.bytes();
 
             for (auto ch = read(is); is && !isspace(ch); ch = read(is))
             {
-                to.push(ch);
+                // Reuse available memory to avoid reallocation
+                if (to.size() + string::_codebytes(ch) <= tmp_size)
+                {
+                    to.end = string::_encode(to.end, ch);
+                }
+                else to.push(ch);
             }
             return is;
         }
@@ -1962,12 +1970,19 @@ namespace utf
          *
          * \param buf Pointer to the initialization buffer
          * \param bufsize New buffer size
+         * 
+         * \details In fact, reallocation occurs only if `bufsize` exceeds the actual buffer size
         */
         auto _bufinit(void* buf, size_type bufsize) -> void
         {
-            delete[] bytes();
-
-            repr = new uint8_t[bufsize]; end = bytes() + bufsize;
+            // Reallocate only if there is not enough memory
+            if (bufsize > size())
+            {
+                delete[] bytes();
+                repr = new uint8_t[bufsize];
+            }
+            
+            end = bytes() + bufsize;
             memcpy(bytes(), buf, bufsize);
         }
 
