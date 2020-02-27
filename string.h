@@ -25,8 +25,8 @@ namespace utf
      *
      * \details Stores an Unicode string as a dynamically-allocated memory buffer
      * 
-     * \version 0.1.3
-     * \date 2020/02/26
+     * \version 0.2.0
+     * \date 2020/02/27
     */
     class string
     {
@@ -165,12 +165,14 @@ namespace utf
                     pointer prev = nullptr;
 
                     if (count > 0)
-                        for (; count--; prev = _base()) {
+                        for (; count--; prev = _base())
+                        {
                             ++(*this);
                             if (prev == _base()) break;
                         }
                     else
-                        for (; count++; prev = _base()) {
+                        for (; count++; prev = _base())
+                        {
                             --(*this);
                             if (prev == _base()) break;
                         }
@@ -233,10 +235,12 @@ namespace utf
                 {
                     difference_type count = 0;
 
-                    if (other <= *this) {
+                    if (other <= *this)
+                    {
                         for (; *this != other; ++other) ++count;
                     }
-                    else {
+                    else
+                    {
                         for (; *this != other; --other) --count;
                     }
 
@@ -255,7 +259,8 @@ namespace utf
                 [[nodiscard]]
                 auto operator * () const -> char_type
                 {
-                    if (*this == parent->end()) {
+                    if (*this == parent->end())
+                    {
                         throw out_of_range{ "Out of bounds iterator dereferencing" };
                     }
                     return string::_decode(ptrbase);
@@ -398,7 +403,8 @@ namespace utf
                 */
                 auto _forward_decrease() -> iterator&
                 {
-                    if (ptrbase == parent->bytes() || ptrbase == parent->_forward_rend()._base()) {
+                    if (ptrbase == parent->bytes() || ptrbase == parent->_forward_rend()._base())
+                    {
                         ptrbase = parent->bytes() - 1;
                     }
                     else while (ptrbase && (*--ptrbase & 0xC0) == 0x80);
@@ -414,7 +420,8 @@ namespace utf
                 */
                 auto _forward_increase() -> iterator&
                 {
-                    if (ptrbase != parent->forward_end) {
+                    if (ptrbase != parent->forward_end)
+                    {
                         ptrbase += string::_charsize(ptrbase);
                     }
                     return *this;
@@ -448,9 +455,9 @@ namespace utf
              * to keep the valid range taking the forward direction into account
             */
             view(iterator const& be, iterator const& en)
-                : forward_begin{ std::min(be._base(), en._base()) },
-                  forward_end{ std::max(be._base(), en._base()) },
-                  is_forward{ true }
+                : forward_begin{ std::min(be._base(), en._base()) }
+                , forward_end{ std::max(be._base(), en._base()) }
+                , is_forward{ true }
             {}
 
             /**
@@ -555,7 +562,8 @@ namespace utf
             [[nodiscard]]
             auto find(view const& vi) const -> iterator
             {
-                for (auto it = begin(); it != end(); ++it) {
+                for (auto it = begin(); it != end(); ++it)
+                {
                     if (it._base() + vi.size() < forward_end && !memcmp(it._base(), vi.bytes(), vi.size())) return it;
                 }
                 return end();
@@ -584,7 +592,8 @@ namespace utf
             [[nodiscard]]
             auto find(std::function<bool(char_type)> const& pred) const -> iterator
             {
-                for (auto it = begin(); it != end(); ++it) {
+                for (auto it = begin(); it != end(); ++it)
+                {
                     if (pred(*it)) return it;
                 }
                 return end();
@@ -647,6 +656,69 @@ namespace utf
             auto contains(char_type value) const -> bool
             {
                 return find(value) != end();
+            }
+
+            /**
+             * \brief Counts the number of substring occurences
+             * 
+             * \param vi Substring to count (by its view)
+             * 
+             * \return Number of occurences
+            */
+            auto count(view const& vi) const -> size_type
+            {
+                size_type cnt = 0;
+
+                for (auto it = begin(); it != end(); ++it)
+                {
+                    if (it._base() + vi.size() < forward_end && !memcmp(it._base(), vi.bytes(), vi.size())) ++cnt;
+                }
+                return cnt;
+            }
+
+            /**
+             * \brief Counts the number of substring occurences
+             * 
+             * \param what Substring to count
+             * 
+             * \return Number of occurences
+            */
+            auto count(string const& what) const -> size_type
+            {
+                return count(what.chars());
+            }
+
+            /**
+             * \brief Counts the number of characters satisfying the predicate
+             * 
+             * \param pred Predicate to check
+             * 
+             * \return Number of occurences
+            */
+            [[nodiscard]]
+            auto count(std::function<bool(char_type)> const& pred) const -> size_type
+            {
+                size_type cnt = 0;
+
+                for (auto it = begin(); it != end(); ++it)
+                {
+                    if (pred(*it)) ++cnt;
+                }
+                return cnt;
+            }
+
+            /**
+             * \brief Counts the number of occurences of the given characters
+             * 
+             * \param value Character to count
+             * 
+             * \return Number of occurences
+            */
+            auto count(char_type value) const -> size_type
+            {
+                return count(
+                    [&value](char_type ch){ return value == ch; }
+                );
             }
 
             /**
@@ -881,6 +953,7 @@ namespace utf
         string(view const& vi) : repr{ new uint8_t[vi.size()] }
         {
             end = bytes() + vi.size(); auto ptr = bytes();
+            
             for (auto ch : vi) {
                 ptr = _encode(ptr, ch);
             }
@@ -895,7 +968,8 @@ namespace utf
         */
         auto operator = (string const& other) -> string&
         {
-            if (this != &other) {
+            if (this != &other)
+            {
                 _bufinit(other.bytes(), other.size());
             }
             return *this;
@@ -910,7 +984,8 @@ namespace utf
         */
         auto operator = (string&& other) noexcept -> string&
         {
-            if (this != &other) {
+            if (this != &other)
+            {
                 repr = std::exchange(other.repr, nullptr);
                 end = std::exchange(other.end, nullptr);
             }
@@ -1090,7 +1165,8 @@ namespace utf
         [[nodiscard]]
         auto is_ascii() const -> bool
         {
-            for (auto ptr = bytes(); ptr != end; ++ptr) {
+            for (auto ptr = bytes(); ptr != end; ++ptr)
+            {
                 if (!is_ascii(*ptr)) return false;
             }
             return true;
@@ -1116,7 +1192,8 @@ namespace utf
         */
         auto to_lower_ascii() -> string&
         {
-            for (auto ptr = bytes(); ptr != end; ++ptr) {
+            for (auto ptr = bytes(); ptr != end; ++ptr)
+            {
                 if (is_ascii(*ptr)) *ptr = uint8_t(tolower(*ptr));
             }
             return *this;
@@ -1246,8 +1323,10 @@ namespace utf
          *
          * \return Reference to the modified string
         */
-        auto push(char_type ch) -> string& {
+        auto push(char_type ch) -> string&
+        {
             _encode(_expanded_copy(size() + _codebytes(ch)), ch);
+
             return *this;
         }
 
@@ -1261,6 +1340,7 @@ namespace utf
         auto push(view const& vi) -> string&
         {
             memcpy(_expanded_copy(size() + vi.size()), vi.bytes(), vi.size());
+
             return *this;
         }
 
@@ -1319,7 +1399,8 @@ namespace utf
         */
         auto insert(view::iterator const& iter, char_type value) -> string&
         {
-            if (auto ptr = iter._base(); _range_check(ptr)) {
+            if (auto ptr = iter._base(); _range_check(ptr))
+            {
                 throw out_of_range{ "Given iterator does not point into modifying string" };
             }
             else {
@@ -1373,7 +1454,8 @@ namespace utf
         */
         auto insert(view::iterator const& iter, view const& vi) -> string&
         {
-            if (auto ptr = iter._base(); _range_check(ptr)) {
+            if (auto ptr = iter._base(); _range_check(ptr))
+            {
                 throw out_of_range{ "Given iterator does not point into modifying string" };
             }
             else {
@@ -1421,7 +1503,8 @@ namespace utf
         */
         auto erase(view::iterator const& iter) -> string&
         {
-            if (auto ptr = iter._base(); _range_check(ptr) && ptr != end) {
+            if (auto ptr = iter._base(); _range_check(ptr) && ptr != end)
+            {
                 throw out_of_range{ "Given iterator does not point into modifying string" };
             }
             else {
@@ -1497,6 +1580,7 @@ namespace utf
         auto find(view const& vi) const -> view
         {
             auto it = chars().find(vi);
+
             return {it, it + vi.length()};
         }
 
@@ -1511,6 +1595,55 @@ namespace utf
         auto find(string const& what) const -> view
         {
             return find(what.chars());
+        }
+
+        /**
+         * \brief Counts the number of substring occurences
+         * 
+         * \param vi Substring to count (by its view)
+         * 
+         * \return Number of occurences
+        */
+        auto count(view const& vi) const -> size_type
+        {
+            return chars().count(vi);
+        }
+
+        /**
+         * \brief Counts the number of substring occurences
+         * 
+         * \param what Substring to count
+         * 
+         * \return Number of occurences
+        */
+        auto count(string const& what) const -> size_type
+        {
+            return chars().count(what);
+        }
+
+        /**
+         * \brief Counts the number of characters satisfying the predicate
+         * 
+         * \param pred Predicate to check
+         * 
+         * \return Number of occurences
+        */
+        [[nodiscard]]
+        auto count(std::function<bool(char_type)> const& pred) const -> size_type
+        {
+            return chars().count(pred);
+        }
+
+        /**
+         * \brief Counts the number of occurences of the given characters
+         * 
+         * \param value Character to count
+         * 
+         * \return Number of occurences
+        */
+        auto count(char_type value) const -> size_type
+        {
+            return chars().count(value);
         }
 
         /**
@@ -1566,11 +1699,11 @@ namespace utf
         */
         auto remove(std::function<bool(char_type)> const& pred) -> string&
         {
-            for (auto it = chars().begin(); it._base() != end;) {
-                if (pred(*it)) {
-                    erase({it, it + 1});
-                }
-                else ++it;
+            for (auto it = chars().begin(); it._base() != end;)
+            {
+                if (pred(*it)) erase({it, it + 1});
+                else
+                    ++it;
             }
             return *this;
         }
@@ -1600,8 +1733,10 @@ namespace utf
         {
             auto len = vi.length();
 
-            for (auto it = chars().begin(); it._base() != end;) {
-                if (auto rvi = view{it, it + len}; rvi == vi) {
+            for (auto it = chars().begin(); it._base() != end;)
+            {
+                if (auto rvi = view{it, it + len}; rvi == vi)
+                {
                     erase(rvi);
                 }
                 else ++it;
@@ -1637,7 +1772,8 @@ namespace utf
             auto rsize = vi.size(), osize = other.size();
             auto ptrpos = vi.begin()._base(), tail = vi.end()._base();
 
-            if (_range_check(ptrpos) || _range_check(tail)) {
+            if (_range_check(ptrpos) || _range_check(tail))
+            {
                 throw out_of_range{ "Span error" };
             }
 
@@ -1649,7 +1785,8 @@ namespace utf
              *         ↑            ↑
              *         ptrpos       end
             */
-            if (rsize > osize) {
+            if (rsize > osize)
+            {
                 memmove(ptrpos + osize, tail, end - tail);
                 end -= rsize - osize;
             }
@@ -1661,7 +1798,8 @@ namespace utf
              *         ↑                     ↑
              *         ptrpos                end
             */
-            else if (rsize < osize) {
+            else if (rsize < osize)
+            {
                 ptrpos = _spread(ptrpos, size() + osize - rsize);
             }
 
@@ -1842,7 +1980,8 @@ namespace utf
 
             do {
                 ++res; tmp <<= 1;
-            } while (tmp & 0x80);
+            }
+            while (tmp & 0x80);
 
             return res;
         }
@@ -1868,7 +2007,8 @@ namespace utf
             else {
                 result = *where & (0x7F >> _charsize(where));
 
-                while ((*++where & 0xC0) == 0x80) {
+                while ((*++where & 0xC0) == 0x80)
+                {
                     result <<= 6;
                     result |= *where & 0x3F;
                 }
@@ -1920,7 +2060,8 @@ namespace utf
             if (!dest) return nullptr;
 
             // One-byted subset [0; 127]
-            if (value < 0x80) {
+            if (value < 0x80)
+            {
                 *dest = value; return ++dest;
             }
 
@@ -1929,7 +2070,8 @@ namespace utf
                 auto size = _codebytes(value), tmp = size;
                 uint8_t mask = 0x80;
 
-                while (--size) {
+                while (--size)
+                {
                     *(dest + size) = value & 0x3F | 0x80;
                     value >>= 6; mask >>= 1; mask |= 0x80;
                 }
