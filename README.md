@@ -1,5 +1,5 @@
 # UTF-⓼-CPP
-![version](https://img.shields.io/badge/version-0.2.2-brightgreen)
+![version](https://img.shields.io/badge/version-0.3.0-brightgreen)
 [![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE.md)
 [![help](https://img.shields.io/badge/help-wiki-red)](../../wiki)
 ![cpp-version](https://img.shields.io/badge/C%2B%2B-≥17-blue)
@@ -50,14 +50,14 @@ for (auto view = Line.chars(); auto ch : view)
 utf::string Line{ "Mr Dursley was the director of a firm called Grunnings" };
 
 // Remove all spaces
-Line.clone().remove(isspace);
+Line.clone().remove_if(isspace);
     /* or */
 Line.clone().remove(' ');
     /* or */
-Line.clone().remove([](utf::string::char_type ch) { return isspace(ch); });
+Line.clone().remove_if([](utf::string::char_type ch) { return isspace(ch); });
 
 // Cut the last word off
-Line.chars(0, Line.chars().reverse().find(isspace).as_index()).to_string();
+Line.first(Line.chars().reverse().find_if(isspace).as_index()).to_string();
 //  ↑                                                         ↑
 //  no need to clone here — using the view and actually clone here
 ```
@@ -71,7 +71,7 @@ Line.chars(0, Line.chars().reverse().find(isspace).as_index()).to_string();
   * Substring's view (by `chars(...)`, `first(...)`, `last(...)`) — *linear* / **O(N)**
   * Entire string's view (`chars()`) — *constant* / **O(1)**
 * Insertion — *linear* / **O(N)**; requires extra memory reallocation
-* Search (`find(...)`, `contains(...)`, `count(...)`) / erasure (`erase(...)`, `remove(...)`) — *linear* / **O(N)**
+* Search (`find*(...)`, `contains*(...)`, `count*(...)`) / erasure (`erase(...)`, `remove*(...)`) — *linear* / **O(N)**
 * Length calculation — *linear* / **O(N)** as it requires iteration over every character in the string
 
 Note that replacement (`replace(...)`) is more complicated. It behaves like insertion if the new substring is longer (by its `size()`) than the replacement. Otherwise, the operation does not requires an extra memory and behaves like erasure; both cases have *linear* / **O(N)** time complexity.
