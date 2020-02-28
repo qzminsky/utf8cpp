@@ -3,7 +3,6 @@
 #include <algorithm>
 #include <cstdint>
 #include <exception>
-#include <functional>
 #include <initializer_list>
 #include <iostream>
 #include <limits>
@@ -26,7 +25,7 @@ namespace utf
      *
      * \details Stores an Unicode string as a dynamically-allocated memory buffer
      * 
-     * \version 0.2.2
+     * \version 0.3.0
      * \date 2020/02/28
     */
     class string
@@ -264,7 +263,7 @@ namespace utf
                     {
                         throw out_of_range{ "Out of bounds iterator dereferencing" };
                     }
-                    return string::_decode(ptrbase);
+                    return string::_decode(_base());
                 }
 
                 /**
@@ -285,14 +284,14 @@ namespace utf
                 }
 
                 /**
-                 * \brief Transorms an iterator into character's index in the parent view
+                 * \brief Transforms an iterator into character's index in the parent view
                  * 
                  * \return Count of hops from the beginning of the view
                 */
                 [[nodiscard]]
                 auto as_index() const -> size_type
                 {
-                    return *this - view{ *parent }.reverse().begin();
+                    return *this - view{ *parent }.forward().begin();
                 }
 
                 /**
@@ -305,7 +304,7 @@ namespace utf
                 [[nodiscard]]
                 auto operator == (iterator const& other) const -> bool
                 {
-                    return ptrbase == other.ptrbase;
+                    return _base() == other._base();
                 }
 
                 /**
@@ -334,7 +333,7 @@ namespace utf
                 [[nodiscard]]
                 auto operator < (iterator const& other) const -> bool
                 {
-                    return parent->is_forward ? (ptrbase < other.ptrbase) : (ptrbase > other.ptrbase);
+                    return parent->is_forward ? (_base() < other._base()) : (_base() > other._base());
                 }
 
                 /**
@@ -366,7 +365,7 @@ namespace utf
                 [[nodiscard]]
                 auto operator > (iterator const& other) const -> bool
                 {
-                    return !(*this <= other);
+                    return other < *this;
                 }
 
                 /**
@@ -382,7 +381,16 @@ namespace utf
                 [[nodiscard]]
                 auto operator >= (iterator const& other) const -> bool
                 {
-                    return !(*this < other);
+                    return other < *this || *this == other;
+                }
+
+                /**
+                 * \brief Predicate operator. Returns `true` if iterator doesn't points to the end of parent view
+                */
+                [[nodiscard]]
+                explicit operator bool() const
+                {
+                    return *this != parent->end();
                 }
 
             private:
@@ -404,7 +412,7 @@ namespace utf
                 */
                 auto _forward_decrease() -> iterator&
                 {
-                    if (ptrbase == parent->bytes() || ptrbase == parent->_forward_rend()._base())
+                    if (_base() == parent->bytes() || _base() == parent->_forward_rend()._base())
                     {
                         ptrbase = parent->bytes() - 1;
                     }
@@ -421,9 +429,9 @@ namespace utf
                 */
                 auto _forward_increase() -> iterator&
                 {
-                    if (ptrbase != parent->forward_end)
+                    if (_base() != parent->forward_end)
                     {
-                        ptrbase += string::_charsize(ptrbase);
+                        ptrbase += string::_charsize(_base());
                     }
                     return *this;
                 }
@@ -444,7 +452,18 @@ namespace utf
             view(view const&) = default;
             view(view&&) = default;
 
-            view(string& other) : forward_begin{ other.bytes() }, forward_end{ other.end }, is_forward{ true } {}
+            /*view(char* cstr)
+                : forward_begin{ reinterpret_cast<pointer>(cstr) }
+                , forward_end{ reinterpret_cast<pointer>(cstr + strlen(cstr)) }
+                , is_forward{ true }
+            {}*/
+
+            /**
+             * \brief Constructs the view over the string
+             * 
+             * \param base String to view
+            */
+            view(string const& base) : forward_begin{ base.bytes() }, forward_end{ base.end }, is_forward{ true } {}
 
             /**
              * \brief Constructs a view via pair of iterators
@@ -473,13 +492,35 @@ namespace utf
             }
 
             /**
-             * \brief Turns the iterating direction over
+             * \brief Flips the iterating direction
              * 
              * \return Reference to the modfied view
             */
             auto reverse() -> view&
             {
                 is_forward = !is_forward;
+                return *this;
+            }
+
+            /**
+             * \brief Sets the iterating direction as forward
+             * 
+             * \return Reference to the modified view
+            */
+            auto forward() -> view&
+            {
+                is_forward = true;
+                return *this;
+            }
+
+            /**
+             * \brief Sets the iterating direction as backward
+             * 
+             * \return Reference to the modified view
+            */
+            auto backward() -> view&
+            {
+                is_forward = false;
                 return *this;
             }
 
@@ -513,7 +554,7 @@ namespace utf
             /**
              * \brief Returns the size of the subspan's memory buffer
              *
-             * \warning This isn't equivalent to `length()`, which returns the number of *characters*.
+             * \warning This isn't equivalent to `length()`, which returns the number of _characters_.
              * Every UTF-8 character has a different size, from 1 to 4 bytes
             */
             [[nodiscard]]
@@ -525,7 +566,7 @@ namespace utf
             /**
              * \brief Returns the number of Unicode characters in the span
              *
-             * \warning This isn't equivalent to `size()`, which returns exactly the number of *bytes*.
+             * \warning This isn't equivalent to `size()`, which returns exactly the number of _bytes_.
              * Every UTF-8 character has a different size, from 1 to 4 bytes
              * \note This is an `O(n)` operation as it requires iteration over every UTF-8 character of the view
             */
@@ -584,14 +625,15 @@ namespace utf
             }
 
             /**
-             * \brief Search for the first character in the view satisfying the predicate
+             * \brief Search for the first character in the view satisfying specified criteria
              * 
              * \param pred Predicate to check
              * 
              * \return Iterator to the first occurence of the character
             */
+            template <typename Functor>
             [[nodiscard]]
-            auto find(std::function<bool(char_type)> const& pred) const -> iterator
+            auto find_if(Functor&& pred) const -> iterator
             {
                 for (auto it = begin(); it != end(); ++it)
                 {
@@ -610,7 +652,7 @@ namespace utf
             [[nodiscard]]
             auto find(char_type value) const -> iterator
             {
-                return find(
+                return find_if(
                     [&value](char_type ch){ return value == ch; }
                 );
             }
@@ -638,14 +680,15 @@ namespace utf
             }
 
             /**
-             * \brief Predicate. Returns `trie` if the view contains characters satisfying the predicate
+             * \brief Predicate. Returns `trie` if the view contains characters satisfying specified criteria
              * 
              * \param pred Predicate to check
             */
+            template <typename Functor>
             [[nodiscard]]
-            auto contains(std::function<bool(char_type)> const& pred) const -> bool
+            auto contains_if(Functor&& pred) const -> bool
             {
-                return find(pred) != end();
+                return find_if(pred) != end();
             }
 
             /**
@@ -692,14 +735,15 @@ namespace utf
             }
 
             /**
-             * \brief Counts the number of characters satisfying the predicate
+             * \brief Counts the number of characters satisfying specified criteria
              * 
              * \param pred Predicate to check
              * 
              * \return Number of occurences
             */
+            template <typename Functor>
             [[nodiscard]]
-            auto count(std::function<bool(char_type)> const& pred) const -> size_type
+            auto count_if(Functor&& pred) const -> size_type
             {
                 size_type cnt = 0;
 
@@ -720,7 +764,7 @@ namespace utf
             [[nodiscard]]
             auto count(char_type value) const -> size_type
             {
-                return count(
+                return count_if(
                     [&value](char_type ch){ return value == ch; }
                 );
             }
@@ -764,7 +808,8 @@ namespace utf
             */
             friend auto operator << (std::ostream& os, view const& vi) -> std::ostream&
             {
-                for (auto ch : vi) {
+                for (auto ch : vi)
+                {
                     write(os, ch);
                 }
                 return os;
@@ -844,14 +889,6 @@ namespace utf
             }
 
         private:
-        
-            /**
-             * \internal
-             * \brief Constructs the view via given string pointer (used by `chars()`)
-             * 
-             * \param base Pointer to the `string` object
-            */
-            explicit view(string const* base) : forward_begin{ base->bytes() }, forward_end{ base->end }, is_forward{ true } {}
 
             /**
              * \internal
@@ -890,11 +927,7 @@ namespace utf
          * 
          * \param other String to copy
         */
-        string(string const& other) : repr{ new uint8_t[other.size()] }
-        {
-            end = bytes() + other.size();
-            memcpy(bytes(), other.bytes(), size());
-        }
+        string(string const& other) { _bufinit((void*)other.bytes(), other.size()); }
 
         /**
          * \brief Move constructor
@@ -927,22 +960,14 @@ namespace utf
          * 
          * \note The reverse operation is `make_bytes()`
         */
-        explicit string(std::vector<uint8_t> const& vec) : repr{ new uint8_t[vec.size()] }
-        {
-            end = repr + vec.size();
-            memcpy(bytes(), vec.data(), size());
-        }
+        explicit string(std::vector<uint8_t> const& vec) { _bufinit((void*)vec.data(), vec.size()); }
 
         /**
          * \brief Converting constructor from `std::string`
          * 
          * \param stds Source `std::string` to construct from
         */
-        string(std::string const& stds) : repr{ new uint8_t[stds.size()] }
-        {
-            end = repr + stds.size();
-            memcpy(bytes(), stds.data(), size());
-        }
+        string(std::string const& stds) { _bufinit((void*)stds.data(), stds.length()); }
 
         /**
          * \brief Converting constructor from a C-string
@@ -1034,7 +1059,7 @@ namespace utf
         [[nodiscard]]
         auto chars() const -> view
         {
-            return view{ this };
+            return *this;
         }
 
         /**
@@ -1086,7 +1111,7 @@ namespace utf
         [[nodiscard]]
         auto last(size_type N) const -> view
         {
-            return chars().reverse().truncate(0, N).reverse();
+            return chars().backward().truncate(0, N).forward();
         }
 
         /**
@@ -1160,7 +1185,7 @@ namespace utf
         [[nodiscard]]
         auto back() const -> char_type
         {
-            return *chars().reverse().begin();
+            return *chars().backward().begin();
         }
 
         /**
@@ -1345,7 +1370,7 @@ namespace utf
         */
         auto push(view const& vi) -> string&
         {
-            memcpy(_expanded_copy(size() + vi.size()), vi.bytes(), vi.size());
+            std::copy_n(vi.bytes(), vi.size(), _expanded_copy(size() + vi.size()));
 
             return *this;
         }
@@ -1369,7 +1394,7 @@ namespace utf
         */
         auto pop() -> char_type
         {
-            auto it = chars().reverse().begin();
+            auto it = chars().backward().begin();
             end = it._base();
 
             return *it;
@@ -1429,7 +1454,13 @@ namespace utf
         {
             if (pos < 0) throw invalid_argument{ "Negative inserting position" };
 
-            memcpy(_spread((chars().begin() + pos)._base(), size() + vi.size()), vi.bytes(), vi.size());
+            std::copy_n
+            (
+                vi.bytes(),
+                vi.size(),
+                _spread((chars().begin() + pos)._base(), size() + vi.size())
+            );
+
             return *this;
         }
 
@@ -1465,7 +1496,7 @@ namespace utf
                 throw out_of_range{ "Given iterator does not point into modifying string" };
             }
             else {
-                memcpy(_spread(ptr, size() + vi.size()), vi.bytes(), vi.size());
+                std::copy_n(vi.bytes(), vi.size(), _spread(ptr, size() + vi.size()));
             }
             return *this;
         }
@@ -1515,7 +1546,7 @@ namespace utf
             }
             else {
                 auto sz = _charsize(ptr);
-                memmove(ptr, ptr + sz, end - ptr - sz);
+                std::copy_n(ptr + sz, end - ptr - sz, ptr);
 
                 end -= sz;
             }
@@ -1535,12 +1566,12 @@ namespace utf
         {
             if (auto vi_be = vi.begin()._base(), vi_en = vi.end()._base();
                 _range_check(vi_be) ||
-                _range_check(vi_en))
-            {
+                _range_check(vi_en)
+            ) {
                 throw out_of_range{ "Span error" };
             }
             else {
-                memmove(vi_be, vi_en, end - vi_en);
+                std::copy_n(vi_en, end - vi_en, vi_be);
                 end -= vi.size();
             }
 
@@ -1630,14 +1661,15 @@ namespace utf
         }
 
         /**
-         * \brief Counts the number of characters satisfying the predicate
+         * \brief Counts the number of characters satisfying specified criteria
          * 
          * \param pred Predicate to check
          * 
          * \return Number of occurences
         */
+        template <typename Functor>
         [[nodiscard]]
-        auto count(std::function<bool(char_type)> const& pred) const -> size_type
+        auto count_if(Functor&& pred) const -> size_type
         {
             return chars().count(pred);
         }
@@ -1689,24 +1721,26 @@ namespace utf
         }
 
         /**
-         * \brief Predicate. Returns `trie` if the string contains characters satisfying the predicate
+         * \brief Predicate. Returns `trie` if the string contains characters satisfying specified criteria
          * 
          * \param pred Predicate to check
         */
+        template <typename Functor>
         [[nodiscard]]
-        auto contains(std::function<bool(char_type)> const& pred) const -> bool
+        auto contains_if(Functor&& pred) const -> bool
         {
             return chars().contains(pred);
         }
 
         /**
-         * \brief Removes all characters satisfying the predicate
+         * \brief Removes all characters satisfying specified criteria
          * 
          * \param pred Checking predicate
          * 
          * \return Reference to the modified string
         */
-        auto remove(std::function<bool(char_type)> const& pred) -> string&
+        template <typename Functor>
+        auto remove_if(Functor&& pred) -> string&
         {
             for (auto it = chars().begin(); it._base() != end;)
             {
@@ -1726,7 +1760,7 @@ namespace utf
         */
         auto remove(char_type value) -> string&
         {
-            return remove(
+            return remove_if(
                 [&value](char_type ch){ return ch == value; }
             );
         }
@@ -1796,7 +1830,7 @@ namespace utf
             */
             if (rsize > osize)
             {
-                memmove(ptrpos + osize, tail, end - tail);
+                std::copy_n(tail, end - tail, ptrpos + osize);
                 end -= rsize - osize;
             }
             /*     pos     N           end
@@ -1812,7 +1846,7 @@ namespace utf
                 ptrpos = _spread(ptrpos, size() + osize - rsize);
             }
 
-            memcpy(ptrpos, other.bytes(), osize);
+            std::copy_n(other.bytes(), osize, ptrpos);
 
             return *this;
         }
@@ -1916,7 +1950,7 @@ namespace utf
         {
             auto tmp = new uint8_t[new_size]; auto copy_bytes = size();
 
-            memcpy(tmp, bytes(), copy_bytes);	// FIXME An UB caused of bytes() == nullptr in clear string
+            std::copy_n(bytes(), copy_bytes, tmp);
             delete[] bytes();
 
             repr = tmp; end = bytes() + new_size;
@@ -1948,7 +1982,7 @@ namespace utf
             auto tail = _expanded_copy(new_size);
 
             where = bytes() + shift;
-            memmove(where + (end - tail), where, tail - where);
+            std::copy_backward(where, tail, end);
 
             return where;
 
@@ -1983,7 +2017,7 @@ namespace utf
             }
             
             end = bytes() + bufsize;
-            memcpy(bytes(), buf, bufsize);
+            std::copy_n((char*)buf, bufsize, bytes());
         }
 
         /**
@@ -2063,7 +2097,7 @@ namespace utf
 
         /**
          * \internal
-         * \brief Predicate. Checks if `ptr` points into the string's buffer
+         * \brief Predicate. Checks if `ptr` doesn't point into the string's buffer
          * 
          * \param ptr Checking pointer
         */
