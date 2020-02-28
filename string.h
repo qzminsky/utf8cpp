@@ -8,7 +8,6 @@
 #include <limits>
 #include <string>
 #include <type_traits>
-#include <utility>
 #include <vector>
 
 namespace utf
@@ -25,7 +24,7 @@ namespace utf
      *
      * \details Stores an Unicode string as a dynamically-allocated memory buffer
      * 
-     * \version 0.3.0
+     * \version 0.3.1
      * \date 2020/02/28
     */
     class string
@@ -259,7 +258,7 @@ namespace utf
                 [[nodiscard]]
                 auto operator * () const -> char_type
                 {
-                    if (*this == parent->end())
+                    if (!*this)
                     {
                         throw out_of_range{ "Out of bounds iterator dereferencing" };
                     }
@@ -385,12 +384,12 @@ namespace utf
                 }
 
                 /**
-                 * \brief Predicate operator. Returns `true` if iterator doesn't points to the end of parent view
+                 * \brief Predicate operator. Returns `true` if the iterator points to the end of parent view
                 */
                 [[nodiscard]]
-                explicit operator bool() const
+                auto operator ! () const -> bool
                 {
-                    return *this != parent->end();
+                    return *this == parent->end();
                 }
 
             private:
@@ -452,18 +451,19 @@ namespace utf
             view(view const&) = default;
             view(view&&) = default;
 
-            /*view(char* cstr)
-                : forward_begin{ reinterpret_cast<pointer>(cstr) }
-                , forward_end{ reinterpret_cast<pointer>(cstr + strlen(cstr)) }
-                , is_forward{ true }
-            {}*/
-
             /**
              * \brief Constructs the view over the string
              * 
              * \param base String to view
             */
-            view(string const& base) : forward_begin{ base.bytes() }, forward_end{ base.end }, is_forward{ true } {}
+            view(string const& base)
+                : forward_begin{ base.bytes() }
+                , forward_end{ base.end }
+                , is_forward{ true }
+            {}
+
+            /// A view cannot be constructed by reference to the temporary string
+            view(string const&&) = delete;
 
             /**
              * \brief Constructs a view via pair of iterators
