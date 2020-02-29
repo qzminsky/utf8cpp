@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <cstdlib>
+#include <cstring>
 #include <exception>
 #include <initializer_list>
 #include <iostream>
@@ -24,8 +26,8 @@ namespace utf
      *
      * \details Stores an Unicode string as a dynamically-allocated memory buffer
      * 
-     * \version 0.3.1
-     * \date 2020/02/28
+     * \version 0.3.2
+     * \date 2020/02/29
     */
     class string
     {
@@ -428,7 +430,7 @@ namespace utf
                 */
                 auto _forward_increase() -> iterator&
                 {
-                    if (_base() != parent->forward_end)
+                    if (_base() != parent->bytes_end())
                     {
                         ptrbase += string::_charsize(_base());
                     }
@@ -539,7 +541,7 @@ namespace utf
             [[nodiscard]]
             auto end() const -> iterator
             {
-                return is_forward ? iterator{ forward_end, this } : _forward_rend();
+                return is_forward ? iterator{ bytes_end(), this } : _forward_rend();
             }
 
             /**
@@ -561,6 +563,15 @@ namespace utf
             auto size() const -> size_type
             {
                 return forward_end - bytes();
+            }
+
+            /**
+             * \brief Returns the pointer to the ending of the view's data
+            */
+            [[nodiscard]]
+            auto bytes_end() const -> pointer
+            {
+                return bytes() + size();
             }
 
             /**
@@ -604,9 +615,13 @@ namespace utf
             [[nodiscard]]
             auto find(view const& vi) const -> iterator
             {
-                for (auto it = begin(); it != end(); ++it)
+                for (auto it = begin(); !! it; ++it)
                 {
-                    if (it._base() + vi.size() < forward_end && !memcmp(it._base(), vi.bytes(), vi.size())) return it;
+                    if (
+                        it._base() + vi.size() < bytes_end() &&
+                        std::equal(vi.bytes(), vi.bytes_end(), it._base())
+                    )
+                        return it;
                 }
                 return end();
             }
@@ -635,7 +650,7 @@ namespace utf
             [[nodiscard]]
             auto find_if(Functor&& pred) const -> iterator
             {
-                for (auto it = begin(); it != end(); ++it)
+                for (auto it = begin(); !! it; ++it)
                 {
                     if (pred(*it)) return it;
                 }
@@ -665,7 +680,7 @@ namespace utf
             [[nodiscard]]
             auto contains(view const& vi) const -> bool
             {
-                return find(vi) != end();
+                return !! find(vi);
             }
 
             /**
@@ -688,7 +703,7 @@ namespace utf
             [[nodiscard]]
             auto contains_if(Functor&& pred) const -> bool
             {
-                return find_if(pred) != end();
+                return !! find_if(pred);
             }
 
             /**
@@ -699,7 +714,7 @@ namespace utf
             [[nodiscard]]
             auto contains(char_type value) const -> bool
             {
-                return find(value) != end();
+                return !! find(value);
             }
 
             /**
@@ -714,9 +729,13 @@ namespace utf
             {
                 size_type cnt = 0;
 
-                for (auto it = begin(); it != end(); ++it)
+                for (auto it = begin(); !! it; ++it)
                 {
-                    if (it._base() + vi.size() < forward_end && !memcmp(it._base(), vi.bytes(), vi.size())) ++cnt;
+                    if (
+                        it._base() + vi.size() < bytes_end() &&
+                        std::equal(vi.bytes(), vi.bytes_end(), it._base())
+                    )
+                        ++cnt;
                 }
                 return cnt;
             }
@@ -747,7 +766,7 @@ namespace utf
             {
                 size_type cnt = 0;
 
-                for (auto it = begin(); it != end(); ++it)
+                for (auto it = begin(); !! it; ++it)
                 {
                     if (pred(*it)) ++cnt;
                 }
@@ -791,8 +810,10 @@ namespace utf
                 }
                 else
                 {
-                    forward_end = (iterator{ forward_end, this } + off)._base();
-                    forward_begin = (iterator{ forward_end, this } + N)._base();
+                    /*forward_end = (iterator{ bytes_end(), this } + off)._base();
+                    forward_begin = (iterator{ bytes_end(), this } + N)._base();*/
+                    forward_end = (_forward_rbegin() + (off - 1))._base();
+                    forward_begin = (_forward_rbegin() + (N - 1))._base();
                 }
 
                 return *this;
@@ -825,7 +846,7 @@ namespace utf
             [[nodiscard]]
             auto operator == (view const& other) const -> bool
             {
-                return (size() == other.size()) && (memcmp(bytes(), other.bytes(), size()) == 0);
+                return (size() == other.size()) && std::equal(bytes(), bytes_end(), other.bytes());
             }
 
             /**
@@ -851,7 +872,7 @@ namespace utf
             [[nodiscard]]
             auto operator == (string const& str) const -> bool
             {
-                return (size() == str.size()) && (memcmp(bytes(), str.bytes(), size()) == 0);
+                return (size() == str.size()) && std::equal(bytes(), bytes_end(), str.bytes());
             }
 
             /**
@@ -873,7 +894,7 @@ namespace utf
             [[nodiscard]]
             auto is_valid() const -> bool
             {
-                for (auto ch = bytes(); ch != forward_end; ++ch)
+                for (auto ch = bytes(); ch != bytes_end(); ++ch)
                 {
                     if (is_ascii(*ch)) {
                         continue;
@@ -882,7 +903,7 @@ namespace utf
                         return false;
                     }
                     else while (--sz) {
-                        if (++ch == forward_end || (*ch & 0xC0) != 0x80) return false;
+                        if (++ch == bytes_end() || (*ch & 0xC0) != 0x80) return false;
                     }
                 }
                 return true;
@@ -898,7 +919,7 @@ namespace utf
             */
             auto _forward_rbegin() const -> iterator
             {
-                return iterator{ forward_end, this }._forward_decrease();
+                return iterator{ bytes_end(), this }._forward_decrease();
             }
 
             /**
@@ -974,7 +995,7 @@ namespace utf
          * 
          * \param cstr Source C-string (`const char*`) to construct from
         */
-        string(const char* cstr) { _bufinit((void*)cstr, strlen(cstr)); }
+        string(const char* cstr) { _bufinit((void*)cstr, std::strlen(cstr)); }
 
         /**
          * \brief Converting constructor from a view
@@ -1032,7 +1053,7 @@ namespace utf
         */
         auto operator = (const char* cstr) -> string&
         {
-            _bufinit((void*)cstr, strlen(cstr));
+            _bufinit((void*)cstr, std::strlen(cstr));
         }
 
         /**
@@ -1137,12 +1158,21 @@ namespace utf
         }
 
         /**
+         * \brief Returns the pointer to the ending of the string's data
+        */
+        [[nodiscard]]
+        auto bytes_end() const -> pointer
+        {
+            return end;
+        }
+
+        /**
          * \brief Creates and returns an `std::vector` object containing buffer bytes data
         */
         [[nodiscard]]
         auto make_bytes() const -> std::vector<uint8_t>
         {
-            return std::vector<uint8_t>(bytes(), end);
+            return std::vector<uint8_t>(bytes(), bytes_end());
         }
 
         /**
@@ -1196,7 +1226,7 @@ namespace utf
         [[nodiscard]]
         auto is_ascii() const -> bool
         {
-            for (auto ptr = bytes(); ptr != end; ++ptr)
+            for (auto ptr = bytes(); ptr != bytes_end(); ++ptr)
             {
                 if (!is_ascii(*ptr)) return false;
             }
@@ -1223,7 +1253,7 @@ namespace utf
         */
         auto to_lower_ascii() -> string&
         {
-            for (auto ptr = bytes(); ptr != end; ++ptr)
+            for (auto ptr = bytes(); ptr != bytes_end(); ++ptr)
             {
                 if (is_ascii(*ptr)) *ptr = uint8_t(tolower(*ptr));
             }
@@ -1237,7 +1267,8 @@ namespace utf
         */
         auto to_upper_ascii() -> string&
         {
-            for (auto ptr = bytes(); ptr != end; ++ptr) {
+            for (auto ptr = bytes(); ptr != bytes_end(); ++ptr)
+            {
                 if (is_ascii(*ptr)) *ptr = uint8_t(toupper(*ptr));
             }
             return *this;
@@ -1253,7 +1284,7 @@ namespace utf
         [[nodiscard]]
         auto operator == (string const& str) const -> bool
         {
-            return (size() == str.size()) && (memcmp(bytes(), str.bytes(), size()) == 0);
+            return (size() == str.size()) && std::equal(bytes(), bytes_end(), str.bytes());
         }
 
         /**
@@ -1344,7 +1375,7 @@ namespace utf
         [[nodiscard]]
         auto size() const -> size_type
         {
-            return end - bytes();
+            return bytes_end() - bytes();
         }
 
         /**
@@ -1540,13 +1571,13 @@ namespace utf
         */
         auto erase(view::iterator const& iter) -> string&
         {
-            if (auto ptr = iter._base(); _range_check(ptr) && ptr != end)
+            if (auto ptr = iter._base(); _range_check(ptr) && ptr != bytes_end())
             {
                 throw out_of_range{ "Given iterator does not point into modifying string" };
             }
             else {
                 auto sz = _charsize(ptr);
-                std::copy_n(ptr + sz, end - ptr - sz, ptr);
+                std::copy(ptr + sz, end, ptr);
 
                 end -= sz;
             }
@@ -1742,7 +1773,7 @@ namespace utf
         template <typename Functor>
         auto remove_if(Functor&& pred) -> string&
         {
-            for (auto it = chars().begin(); it._base() != end;)
+            for (auto it = chars().begin(); it._base() != bytes_end();)
             {
                 if (pred(*it)) erase({it, it + 1});
                 else
@@ -1776,7 +1807,7 @@ namespace utf
         {
             auto len = vi.length();
 
-            for (auto it = chars().begin(); it._base() != end;)
+            for (auto it = chars().begin(); it._base() != bytes_end();)
             {
                 if (auto rvi = view{it, it + len}; rvi == vi)
                 {
@@ -1830,7 +1861,7 @@ namespace utf
             */
             if (rsize > osize)
             {
-                std::copy_n(tail, end - tail, ptrpos + osize);
+                std::copy(tail, bytes_end(), ptrpos + osize);
                 end -= rsize - osize;
             }
             /*     pos     N           end
@@ -1913,7 +1944,7 @@ namespace utf
                 // Reuse available memory to avoid reallocation
                 if (to.size() + string::_codebytes(ch) <= tmp_size)
                 {
-                    to.end = string::_encode(to.end, ch);
+                    to.end = string::_encode(to.bytes_end(), ch);
                 }
                 else to.push(ch);
             }
@@ -1982,7 +2013,7 @@ namespace utf
             auto tail = _expanded_copy(new_size);
 
             where = bytes() + shift;
-            std::copy_backward(where, tail, end);
+            std::copy_backward(where, tail, bytes_end());
 
             return where;
 
@@ -2104,7 +2135,7 @@ namespace utf
         [[nodiscard]]
         auto _range_check(pointer ptr) -> bool
         {
-            return ptr < bytes() || ptr > end;
+            return ptr < bytes() || ptr > bytes_end();
         }
 
         /**
@@ -2208,6 +2239,63 @@ namespace utf
         string::_encode(code, value);
 
         out << code;
+    }
+
+    /**
+     * \brief Converts the given number into the string according to the specified base
+     * 
+     * \param number Input signed number
+     * \param base Conversion base
+     * 
+     * \return String equivalent of `number`
+     * 
+     * \details The value of `base` must be in range [2; 36]. Otherwise, an exception will be thrown
+     * 
+     * \throw invalid_argument
+    */
+    [[nodiscard]]
+    auto to_string(uintmax_t number, int base = 10) -> string
+    {
+        if (base < 2 || base > 36) throw invalid_argument{ "The base have to be between 2 and 36" };
+
+        if (!number) return "0";
+
+        constexpr auto digits = std::numeric_limits<uintmax_t>::digits;
+        char buff[digits + 1] {}; auto p = buff + digits;
+
+        while (number != 0)
+        {
+            if (int c = number % base; c < 10)
+                *(--p) = '0' + c;
+            else
+                *(--p) = c - 10 + 'a';
+
+            number /= base;
+        }
+
+        return p;
+    }
+
+    /**
+     * \brief Converts the given number into the string according to the specified base
+     * 
+     * \param number Input unsigned number
+     * \param base Conversion base
+     * 
+     * \return String equivalent of `number`
+     * 
+     * \details The value of `base` must be in range [2; 36]. Otherwise, an exception will be thrown
+     * 
+     * \throw invalid_argument
+    */
+    [[nodiscard]]
+    auto to_string(intmax_t number, int base = 10) -> string
+    {
+        auto mstr = to_string((uintmax_t)std::abs(number), base);
+
+        if (number < 0) mstr.insert(0, "-");
+
+        return mstr;
     }
 }
 
