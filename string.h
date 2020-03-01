@@ -1,5 +1,8 @@
 #pragma once
 
+#ifndef UTF8CPP_H
+#define UTF8CPP_H
+
 #include <algorithm>
 #include <cstdint>
 #include <cstdlib>
@@ -7,6 +10,7 @@
 #include <exception>
 #include <initializer_list>
 #include <iostream>
+#include <iterator>
 #include <limits>
 #include <string>
 #include <type_traits>
@@ -26,8 +30,8 @@ namespace utf
      *
      * \details Stores an Unicode string as a dynamically-allocated memory buffer
      * 
-     * \version 0.3.2
-     * \date 2020/02/29
+     * \version 0.3.3
+     * \date 2020/03/01
     */
     class string
     {
@@ -107,8 +111,6 @@ namespace utf
 
                 /// There is no default constructor for an iterator
                 iterator() = delete;
-                iterator(iterator const&) = default;
-                iterator(iterator&&) = default;
 
                 /**
                  * \brief Offsets the iterator to the next character consider direction
@@ -460,7 +462,7 @@ namespace utf
             */
             view(string const& base)
                 : forward_begin{ base.bytes() }
-                , forward_end{ base.end }
+                , forward_end{ base.bytes_end() }
                 , is_forward{ true }
             {}
 
@@ -810,8 +812,6 @@ namespace utf
                 }
                 else
                 {
-                    /*forward_end = (iterator{ bytes_end(), this } + off)._base();
-                    forward_begin = (iterator{ bytes_end(), this } + N)._base();*/
                     forward_end = (_forward_rbegin() + (off - 1))._base();
                     forward_begin = (_forward_rbegin() + (N - 1))._base();
                 }
@@ -820,28 +820,11 @@ namespace utf
             }
 
             /**
-             * \brief Inserts characters from the view's span into the stream
-             * 
-             * \param os Reference to the output stream
-             * \param vi View to insert
-             * 
-             * \return Reference to the output stream
-            */
-            friend auto operator << (std::ostream& os, view const& vi) -> std::ostream&
-            {
-                for (auto ch : vi)
-                {
-                    write(os, ch);
-                }
-                return os;
-            }
-
-            /**
              * \brief Compares two views by equality
              * 
              * \param other View to compare with
              * 
-             * \return `true` if views' data is equivalent to each other; `false` otherwise
+             * \return `true` if the views' data is equivalent to each other; `false` otherwise
             */
             [[nodiscard]]
             auto operator == (view const& other) const -> bool
@@ -854,7 +837,7 @@ namespace utf
              * 
              * \param other View to compare with
              * 
-             * \return `true` if views' data differs from each other; `false` otherwise
+             * \return `true` if the views' data differs from each other; `false` otherwise
             */
             [[nodiscard]]
             auto operator != (view const& other) const -> bool
@@ -867,7 +850,7 @@ namespace utf
              * 
              * \param str String to compare with
              * 
-             * \return `true` if view's data is equivalent to string's; `false` otherwise
+             * \return `true` if the view's data is equivalent to the string's; `false` otherwise
             */
             [[nodiscard]]
             auto operator == (string const& str) const -> bool
@@ -880,12 +863,40 @@ namespace utf
              * 
              * \param str String to compare with
              * 
-             * \return `true` if view's data is differs from string's; `false` otherwise
+             * \return `true` if the view's data is differs from the string's; `false` otherwise
             */
             [[nodiscard]]
             auto operator != (string const& str) const -> bool
             {
                 return !(*this == str);
+            }
+
+            /**
+             * \brief Checks if the view's data lexicagraphically less than the other's
+             * 
+             * \param vi View to compare with
+             * 
+             * \return `true` if the first view is lexicographically less than the second;
+             * `false` otherwise
+            */
+            [[nodiscard]]
+            auto operator < (view const& vi) const -> bool
+            {
+                return std::lexicographical_compare(begin(), end(), vi.begin(), vi.end());
+            }
+
+            /**
+             * \brief Checks if the view's data lexicagraphically less than the string's
+             * 
+             * \param str String to compare with
+             * 
+             * \return `true` if the view is lexicographically less than the string;
+             * `false` otherwise
+            */
+            [[nodiscard]]
+            auto operator < (string const& str) const -> bool
+            {
+                return *this < str.chars();
             }
 
             /**
@@ -937,6 +948,7 @@ namespace utf
 
         friend auto read(std::istream&) -> char_type;
         friend auto write(std::ostream&, char_type) -> void;
+        friend auto operator >> (std::istream&, string&) -> std::istream&;
 
         /**
          * \brief Default constructor
@@ -1136,19 +1148,6 @@ namespace utf
         }
 
         /**
-         * \brief Inserts characters from the string into the stream
-         * 
-         * \param os Reference to the output stream
-         * \param str String to insert
-         * 
-         * \return Reference to the output stream
-        */
-        friend auto operator << (std::ostream& os, string const& str) -> std::ostream&
-        {
-            return os << str.chars();
-        }
-
-        /**
          * \brief Returns the pointer to the beginning of the string's data
         */
         [[nodiscard]]
@@ -1324,6 +1323,34 @@ namespace utf
         auto operator != (view const& vi) const -> bool
         {
             return vi != *this;
+        }
+
+        /**
+         * \brief Checks if the string's data lexicagraphically less than the view's
+         * 
+         * \param vi View to compare with
+         * 
+         * \return `true` if the string is lexicographically less than the view;
+         * `false` otherwise
+        */
+        [[nodiscard]]
+        auto operator < (view const& vi) const -> bool
+        {
+            return chars() < vi;
+        }
+
+        /**
+         * \brief Checks if the string's data lexicagraphically less than the other's
+         * 
+         * \param str String to compare with
+         * 
+         * \return `true` if the string is lexicographically less than the second;
+         * `false` otherwise
+        */
+        [[nodiscard]]
+        auto operator < (string const& str) const -> bool
+        {
+            return chars() < str.chars();
         }
 
         /**
@@ -1577,7 +1604,7 @@ namespace utf
             }
             else {
                 auto sz = _charsize(ptr);
-                std::copy(ptr + sz, end, ptr);
+                std::copy(ptr + sz, bytes_end(), ptr);
 
                 end -= sz;
             }
@@ -1927,31 +1954,6 @@ namespace utf
         }
 
         /**
-         * \brief Reads UTF-8 characters from input stream until the first space
-         * 
-         * \param is Reference to the input stream
-         * \param to String to store characters
-         * 
-         * \return Reference to the input stream
-        */
-        friend auto operator >> (std::istream& is, string& to) -> std::istream&
-        {
-            auto tmp_size = to.size();
-            to.end = to.bytes();
-
-            for (auto ch = read(is); is && !isspace(ch); ch = read(is))
-            {
-                // Reuse available memory to avoid reallocation
-                if (to.size() + string::_codebytes(ch) <= tmp_size)
-                {
-                    to.end = string::_encode(to.bytes_end(), ch);
-                }
-                else to.push(ch);
-            }
-            return is;
-        }
-
-        /**
          * \brief Swaps the contents of two string
          *
          * \param other String to exchange the contents with
@@ -2242,6 +2244,61 @@ namespace utf
     }
 
     /**
+     * \brief Reads UTF-8 characters from input stream until the first space
+     * 
+     * \param is Reference to the input stream
+     * \param to String to store characters
+     * 
+     * \return Reference to the input stream
+    */
+    auto operator >> (std::istream& is, string& to) -> std::istream&
+    {
+        auto tmp_size = to.size();
+        to.end = to.bytes();
+
+        for (auto ch = read(is); is && !isspace(ch); ch = read(is))
+        {
+            // Reuse available memory to avoid reallocation
+            if (to.size() + string::_codebytes(ch) <= tmp_size)
+            {
+                to.end = string::_encode(to.bytes_end(), ch);
+            }
+            else to.push(ch);
+        }
+        return is;
+    }
+
+    /**
+     * \brief Inserts characters from the view's span into the stream
+     * 
+     * \param os Reference to the output stream
+     * \param vi View to insert
+     * 
+     * \return Reference to the output stream
+    */
+    auto operator << (std::ostream& os, string_view const& vi) -> std::ostream&
+    {
+        for (auto ch : vi)
+        {
+            write(os, ch);
+        }
+        return os;
+    }
+
+    /**
+     * \brief Inserts characters from the string into the stream
+     * 
+     * \param os Reference to the output stream
+     * \param str String to insert
+     * 
+     * \return Reference to the output stream
+    */
+    auto operator << (std::ostream& os, string const& str) -> std::ostream&
+    {
+        return os << str.chars();
+    }
+
+    /**
      * \brief Converts the given number into the string according to the specified base
      * 
      * \param number Input signed number
@@ -2302,6 +2359,20 @@ namespace utf
 namespace std
 {
     /**
+     * \class iterator_traits
+     * 
+     * \brief Iterator traits instantiation for the `string_view::iterator` class
+    */
+    template<>
+    class iterator_traits <utf::string_view::iterator>
+    {
+    public:
+        using difference_type = utf::string::difference_type;
+        using value_type = utf::string::char_type;
+        using iterator_category = std::bidirectional_iterator_tag;
+    };
+
+    /**
      * \brief std::swap implementation for strings
      * 
      * \param s1 First string
@@ -2312,3 +2383,5 @@ namespace std
         s1.swap(s2);
     }
 }
+
+#endif
