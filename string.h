@@ -30,8 +30,8 @@ namespace utf
      *
      * \details Stores an Unicode string as a dynamically-allocated memory buffer
      * 
-     * \version 0.3.4
-     * \date 2020/03/02
+     * \version 0.3.5
+     * \date 2020/03/04
     */
     class string
     {
@@ -48,11 +48,11 @@ namespace utf
 
     private:
 
-        /*            size() == end - bytes()
+        /*            size() == end_bytes() - bytes()
          *  ╭—————————˄——————————╮
          * [x xx x xx xxx x xxxx x].  -- data
          *  ↑                      ↑
-         *  repr == bytes()        end
+         *  _repr == bytes()       _end == end_bytes()
         */
 
         pointer _repr = nullptr, _end = nullptr;
@@ -66,8 +66,8 @@ namespace utf
          * 
          * \brief An iterable, non-owning proxy type for string
          * 
-         * \details Desribes an iterable range with two pointers and direction flag.
-         * Forward direction means an iteration to the higher addresses; backward -- to the lower addresses.
+         * \details Desribes an iterable range with two pointers and a direction flag.
+         * A forward direction means an iteration to the higher addresses; backward -- to the lower addresses.
          * The view doesn't provides any mutators to the original string
         */
         class view
@@ -85,7 +85,7 @@ namespace utf
              * .[x xx x xx xxx x xxxx].
              *   ↑                    ↑
              *   begin(⇒)            end(⇒)
-             *  forward_begin       forward_end
+             * _forward_begin      _forward_end
             */
 
         public:
@@ -331,7 +331,7 @@ namespace utf
                  * \return `true` if `*this` is less than `other`; `false` otherwise
                  * 
                  * \details The iterator `X` is less than another, if it is possible to make them
-                 * equal each other by increasing `X` sequentally (more than 0 times)
+                 * equal each other by increasing `X` sequentally (at least once)
                 */
                 [[nodiscard]]
                 auto operator < (iterator const& other) const -> bool
@@ -363,7 +363,7 @@ namespace utf
                  * \return `true` if `*this` is greater than `other`; `false` otherwise
                  * 
                  * \details The iterator `X` is greater than another, if it is not possible to
-                 * make them equal each other by increasing `X` sequentally (more than 0 times)
+                 * make them equal each other by increasing `X` sequentally (at least once)
                 */
                 [[nodiscard]]
                 auto operator > (iterator const& other) const -> bool
@@ -419,7 +419,7 @@ namespace utf
                     {
                         _ptrbase = _parent->bytes() - 1;
                     }
-                    else while (_ptrbase && (*--_ptrbase & 0xC0) == 0x80);
+                    else while (_ptrbase && (*(--_ptrbase) & 0xC0) == 0x80);
 
                     return *this;
                 }
@@ -1643,13 +1643,13 @@ namespace utf
         {
             return erase(chars(pos, N));
 
-            /*     pos     N           end
+            /*     pos     N           bytes_end()
              *        \╭———˄——╮        ↓
              * [x xx x yy yyy y zzzz z].      -- old state
              *  ↓    ↓ ←————————┘                          〉same buffer
              * [x xx x zzzz z ........].      -- new state
              *  ↑             ↑
-             *  bytes()       end
+             *  bytes()       bytes_end()
             */
         }
 
@@ -1664,9 +1664,12 @@ namespace utf
         [[nodiscard]]
         auto find (view const& vi) const -> view
         {
-            auto it = chars().find(vi);
+            auto it_1 = chars().find(vi);
+            auto it_2{ it_1 };
 
-            return {it, it + vi.length()};
+            it_2._ptrbase = it_1._base() + vi.size();
+
+            return {it_1, it_2};
         }
 
         /**
@@ -1868,26 +1871,26 @@ namespace utf
                 throw out_of_range{ "Span error" };
             }
 
-            /*     pos     N           end
+            /*     pos     N           bytes_end()
              *        \╭———˄——╮        ↓
              * [x xx x yy yyy y zzzz z].      -- old state
              *  ↓    ↓       ←——┘                          〉same buffer
              * [x xx x __ __ zzzz z ..].      -- new state
              *         ↑            ↑
-             *         ptrpos       end
+             *         ptrpos       bytes_end()
             */
             if (rsize > osize)
             {
                 std::copy(tail, bytes_end(), ptrpos + osize);
                 _end -= rsize - osize;
             }
-            /*     pos     N           end
+            /*     pos     N           bytes_end()
              *        \╭———˄——╮        ↓
              * [x xx x yy yyy y zzzz z].            -- old buffer
              *  ↓    ↓ └————→
              * [x xx x . ... __ ___ _ zzzz z].      -- new buffer
              *         ↑                     ↑
-             *         ptrpos                end
+             *         ptrpos                bytes_end()
             */
             else if (rsize < osize)
             {
