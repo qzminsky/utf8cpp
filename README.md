@@ -17,11 +17,11 @@ The class `utf::string` describes a dynamically, array-based, contiguous storage
 * ...and rights to view and change are completely divided between `string`s and `view`s by design!
 
 ### Installation
-1. Download and copy the file `string.h` into your project headers' directory;
+1. Download and copy the `string.h` file into your project headers' directory;
 2. `#include` it;
 3. Enjoy!
 
-> ⚠️ *Note that library requires C++17 support*
+> ⚠️ *Note that the library requires C++17 support*
 
 ## Usage examples
 * Creating the string:
@@ -35,7 +35,7 @@ utf::string MyString2{ 'L',0xf6,'w','e','L',0xe9,'o','p','a','r','d' };
 // Using vector of bytes (also UTF-8 representation)
 utf::string MyString3{ std::vector<uint8_t>{'B','y','t','e','s'} };
 ```
-* Iterating over characters:
+* Iterating over the characters:
 ```C++
 utf::string Line{ "Il buono, il brutto, il cattivo" };
 
@@ -63,7 +63,7 @@ Line.first(Line.chars().reverse().find_if(isspace).as_index()).to_string();
 ```
 
 ## Complexity
-* Access to:
+* Access to the:
   * Single character:
     * `front()`, `back()` — *constant* / **O(1)**
     * *N*-th (`get(N)`) — *linear* / **O(N)**
@@ -74,7 +74,7 @@ Line.first(Line.chars().reverse().find_if(isspace).as_index()).to_string();
 * Search (`find*(...)`, `contains*(...)`, `count*(...)`) / erasure (`erase(...)`, `remove*(...)`) — *linear* / **O(N)**
 * Length calculation — *linear* / **O(N)** as it requires iteration over every character in the string
 
-Note that replacement (`replace(...)`) is more complicated. It behaves like insertion if the new substring is longer (by its `size()`) than the replacement. Otherwise, the operation does not requires an extra memory and behaves like erasure; both cases have *linear* / **O(N)** time complexity.
+Note that a replacement (`replace(...)`) is more complicated. It behaves like an insertion if the new substring is longer (by its `size()`) than the replacement. Otherwise, the operation does not requires an extra memory and behaves like an erasure; both cases have *linear* / **O(N)** time complexity.
 
 ## License
 See the [LICENSE](LICENSE.md) file for license rights and limitations (MIT).
