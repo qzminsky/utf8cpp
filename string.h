@@ -30,7 +30,7 @@ namespace utf
      *
      * \details Stores an Unicode string as a dynamically-allocated memory buffer
      * 
-     * \version 0.3.5
+     * \version 0.4.0
      * \date 2020/03/04
     */
     class string
@@ -72,13 +72,23 @@ namespace utf
         */
         class view
         {
+        public:
+
+            enum class direction : bool
+            {
+                forward = true,
+                backward = false
+            };
+
+        private:
+
             friend class string;
 
             // Iterable range
             pointer _forward_begin = nullptr, _forward_end = nullptr;
 
             // Direcion flag
-            bool _is_forward;
+            direction _direction;
 
             /* end(⇐)           begin(⇐)
              * ↓                 ↓
@@ -119,7 +129,7 @@ namespace utf
                 */
                 auto operator ++ () -> iterator&
                 {
-                    return _parent->_is_forward ? _forward_increase() : _forward_decrease();
+                    return _parent->is_forward() ? _forward_increase() : _forward_decrease();
                 }
 
                 /**
@@ -129,7 +139,7 @@ namespace utf
                 */
                 auto operator -- () -> iterator&
                 {
-                    return _parent->_is_forward ? _forward_decrease() : _forward_increase();
+                    return _parent->is_forward() ? _forward_decrease() : _forward_increase();
                 }
 
                 /**
@@ -336,7 +346,7 @@ namespace utf
                 [[nodiscard]]
                 auto operator < (iterator const& other) const -> bool
                 {
-                    return _parent->_is_forward ? (_base() < other._base()) : (_base() > other._base());
+                    return _parent->is_forward() ? (_base() < other._base()) : (_base() > other._base());
                 }
 
                 /**
@@ -460,7 +470,7 @@ namespace utf
             view (string const& base)
                 : _forward_begin{ base.bytes() }
                 , _forward_end{ base.bytes_end() }
-                , _is_forward{ true }
+                , _direction{ direction::forward }
             {}
 
             /// A view cannot be constructed by reference to the temporary string
@@ -475,10 +485,10 @@ namespace utf
              * \details In actual, checks the order of given iterators and may swap them
              * to keep the valid range taking the forward direction into account
             */
-            view (iterator const& be, iterator const& en)
+            view (iterator const& be, iterator const& en, direction dir = direction::forward)
                 : _forward_begin{ std::min(be._base(), en._base()) }
                 , _forward_end{ std::max(be._base(), en._base()) }
-                , _is_forward{ true }
+                , _direction{ dir }
             {}
 
             /**
@@ -499,8 +509,7 @@ namespace utf
             */
             auto reverse () -> view&
             {
-                _is_forward = !_is_forward;
-                return *this;
+                return is_forward() ? backward() : forward();
             }
 
             /**
@@ -510,7 +519,7 @@ namespace utf
             */
             auto forward () -> view&
             {
-                _is_forward = true;
+                _direction = direction::forward;
                 return *this;
             }
 
@@ -521,8 +530,26 @@ namespace utf
             */
             auto backward () -> view&
             {
-                _is_forward = false;
+                _direction = direction::backward;
                 return *this;
+            }
+
+            /**
+             * \brief Predicate. Returns `true` if the view is forward-directed
+            */
+            [[nodiscard]]
+            auto is_forward() const -> bool
+            {
+                return _direction == direction::forward;
+            }
+
+            /**
+             * \brief Predicate. Returns `true` if the view is backward-directed
+            */
+            [[nodiscard]]
+            auto is_backward() const -> bool
+            {
+                return _direction == direction::backward;
             }
 
             /**
@@ -531,7 +558,7 @@ namespace utf
             [[nodiscard]]
             auto begin () const -> iterator
             {
-                return _is_forward ? iterator{ bytes(), this } : _forward_rbegin();
+                return is_forward() ? iterator{ bytes(), this } : _forward_rbegin();
             }
 
             /**
@@ -540,7 +567,7 @@ namespace utf
             [[nodiscard]]
             auto end () const -> iterator
             {
-                return _is_forward ? iterator{ bytes_end(), this } : _forward_rend();
+                return is_forward() ? iterator{ bytes_end(), this } : _forward_rend();
             }
 
             /**
@@ -802,7 +829,7 @@ namespace utf
                 if (off < 0) throw invalid_argument{ "Negative subspan offset" };
                 if (N < 0) throw invalid_argument{ "Negative subspan length" };
 
-                if (_is_forward)
+                if (is_forward())
                 {
                     _forward_begin = (begin() + off)._base();
                     _forward_end = (begin() + N)._base();
@@ -1011,7 +1038,14 @@ namespace utf
          * 
          * \param vi View providing the set of characters to copy
         */
-        string (view const& vi) { _bufinit((void*)vi.bytes(), vi.size()); }
+        string (view const& vi) : _repr{ new uint8_t[vi.size()] }
+        {
+            _end = bytes() + vi.size(); auto ptr = bytes();
+
+            for (auto ch : vi) {
+                ptr = _encode(ptr, ch);
+            }
+        }
 
         /**
          * \brief Copy assignment
@@ -1073,11 +1107,11 @@ namespace utf
         }
 
         /**
-         * \brief Creates an iterable object
+         * \brief Creates an iterable span object
          *
-         * \return `view`-wrapper over current string
+         * \return `view`-wrapper over the current string
          *
-         * \note This is an `O(1)` operation as it uses pre-known range
+         * \note This is an `O(1)` operation as it uses a pre-known range
         */
         [[nodiscard]]
         auto chars () const -> view
@@ -1091,7 +1125,7 @@ namespace utf
          * \param shift Starting character position
          * \param N Number of slicing characters
          *
-         * \return `view`-wrapper over current string
+         * \return `view`-wrapper over the current string
          *
          * \note This is an `O(n)` operation
          * 
@@ -1104,7 +1138,7 @@ namespace utf
         }
 
         /**
-         * \brief Creates an iterable object of `N` first characters of the string
+         * \brief Creates an iterable span object of `N` first characters of the string
          *
          * \param N Number of slicing characters
          *
@@ -1121,11 +1155,11 @@ namespace utf
         }
 
         /**
-         * \brief Creates an iterable object of `N` last characters of the string
+         * \brief Creates an iterable span object of `N` last characters of the string
          *
          * \param N Number of slicing characters
          *
-         * \return `view`-wrapper over current string
+         * \return `view`-wrapper over the current string
          *
          * \note This is an `O(n)` operation
          * 
@@ -1669,7 +1703,7 @@ namespace utf
 
             it_2._ptrbase = it_1._base() + vi.size();
 
-            return {it_1, it_2};
+            return { it_1, it_2 };
         }
 
         /**
@@ -1722,7 +1756,7 @@ namespace utf
         [[nodiscard]]
         auto count_if (Functor&& pred) const -> size_type
         {
-            return chars().count(pred);
+            return chars().count_if(pred);
         }
 
         /**
@@ -1780,7 +1814,7 @@ namespace utf
         [[nodiscard]]
         auto contains_if (Functor&& pred) const -> bool
         {
-            return chars().contains(pred);
+            return chars().contains_if(pred);
         }
 
         /**
@@ -2192,7 +2226,7 @@ namespace utf
     using string_view = string::view;
 
     /**
-     * \brief UTF-8 `Byte Order Mark` Character
+     * \brief UTF-8 `Byte Order Mark` character
     */
     [[nodiscard]]
     constexpr auto BOM () -> string::char_type
