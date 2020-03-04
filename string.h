@@ -30,7 +30,7 @@ namespace utf
      *
      * \details Stores an Unicode string as a dynamically-allocated memory buffer
      * 
-     * \version 0.4.0
+     * \version 0.4.1
      * \date 2020/03/04
     */
     class string
@@ -538,7 +538,7 @@ namespace utf
              * \brief Predicate. Returns `true` if the view is forward-directed
             */
             [[nodiscard]]
-            auto is_forward() const -> bool
+            auto is_forward () const -> bool
             {
                 return _direction == direction::forward;
             }
@@ -547,7 +547,7 @@ namespace utf
              * \brief Predicate. Returns `true` if the view is backward-directed
             */
             [[nodiscard]]
-            auto is_backward() const -> bool
+            auto is_backward () const -> bool
             {
                 return _direction == direction::backward;
             }
@@ -1951,6 +1951,36 @@ namespace utf
         auto replace (size_type pos, size_type N, string const& other) -> string&
         {
             return replace(chars(pos, N), other);
+        }
+
+        /**
+         * \brief Replaces a character by given index by other string
+         *
+         * \param pos Replacement position
+         * \param other String to replace
+         *
+         * \return Reference to the modified string object
+         * 
+         * \throw invalid_argument
+        */
+        auto replace (size_type pos, string const& other) -> string&
+        {
+            return replace(pos, 1, other);
+        }
+
+        /**
+         * \brief Replaces a character by an iterator by other string
+         *
+         * \param iter Replacement position (by an iterator)
+         * \param other String to replace
+         *
+         * \return Reference to the modified string object
+         * 
+         * \throw out_of_range
+        */
+        auto replace (view::iterator const& iter, string const& other) -> string&
+        {
+            return replace({ iter, iter + 1 }, other);
         }
 
         /**
