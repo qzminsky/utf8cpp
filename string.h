@@ -30,7 +30,7 @@ namespace utf
      *
      * \details Stores an Unicode string as a dynamically-allocated memory buffer
      * 
-     * \version 0.4.1
+     * \version 0.4.2
      * \date 2020/03/04
     */
     class string
@@ -1599,6 +1599,95 @@ namespace utf
         }
 
         /**
+         * \brief Replaces all occurences of the given view (by its data) by another
+         * 
+         * \param vi View to replace
+         * \param other Replacing data
+         * 
+         * \return Reference to the modified string
+        */
+        auto substitute (view const& vi, view const& other) -> string&
+        {
+            for (;;)
+            {
+                if (auto range = find(vi); range) replace(range, other);
+                else
+                    break;
+            }
+
+            return *this;
+        }
+
+        /**
+         * \brief Replaces all occurences of the given substring (by its data) by another
+         * 
+         * \param what Substring to replace
+         * \param other Replacing data
+         * 
+         * \return Reference to the modified string
+        */
+        auto substitute (string const& what, string const& other) -> string&
+        {
+            return substitute(what.chars(), other.chars());
+        }
+
+        /**
+         * \brief Replaces all occurences of the given view (by its data) by the string
+         * 
+         * \param vi View to replace
+         * \param other Replacing data
+         * 
+         * \return Reference to the modified string
+        */
+        auto substitute (view const& what, string const& other) -> string&
+        {
+            return substitute(what, other.chars());
+        }
+
+        /**
+         * \brief Replaces all occurences of the given substring (by its data) by the view
+         * 
+         * \param what Substring to replace
+         * \param other Replacing data
+         * 
+         * \return Reference to the modified string
+        */
+        auto substitute (string const& what, view const& other) -> string&
+        {
+            return substitute(what.chars(), other);
+        }
+
+        /**
+         * \brief Replaces all characters satisfying specified criteria by another
+         * 
+         * \param pred Checking predicate
+         * \param value Replacing character's code point
+         * 
+         * \return Reference to the modified string
+        */
+        template <typename Functor>
+        auto substitute_if (Functor&& pred, char_type value) -> string&
+        {
+            return *this;
+        }
+
+        /**
+         * \brief Replaces all occurences of the given character by another
+         * 
+         * \param what Character to replace
+         * \param value Replacing character's code point
+         * 
+         * \return Reference to the modified string
+        */
+        auto substitute (char_type what, char_type value) -> string&
+        {
+            return substitute_if(
+                [&what](char_type ch){ return ch == what; },
+                value
+            );
+        }
+
+        /**
          * \brief Completely clears the string by deallocating its owned memory
          * 
          * \return Reference to the modified string
@@ -1701,7 +1790,7 @@ namespace utf
             auto it_1 = chars().find(vi);
             auto it_2{ it_1 };
 
-            it_2._ptrbase = it_1._base() + vi.size();
+            if (!! it_1) it_2._ptrbase = it_1._base() + vi.size();
 
             return { it_1, it_2 };
         }
@@ -1829,7 +1918,7 @@ namespace utf
         {
             for (auto it = chars().begin(); it._base() != bytes_end();)
             {
-                if (pred(*it)) erase({it, it + 1});
+                if (pred(*it)) erase({ it, it + 1 });
                 else
                     ++it;
             }
@@ -1863,7 +1952,7 @@ namespace utf
 
             for (auto it = chars().begin(); it._base() != bytes_end();)
             {
-                if (auto rvi = view{it, it + len}; rvi == vi)
+                if (auto rvi = view{ it, it + len }; rvi == vi)
                 {
                     erase(rvi);
                 }
@@ -2292,7 +2381,7 @@ namespace utf
      * \param out Output stream to write into
      * \param value Character's code point
     */
-    auto write(std::ostream& out, string::char_type value) -> void
+    auto write (std::ostream& out, string::char_type value) -> void
     {
         std::remove_pointer<string::pointer>::type code[5] {};
         string::_encode(code, value);
