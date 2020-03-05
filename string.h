@@ -32,8 +32,8 @@ namespace utf
      *
      * \details Stores an Unicode string as a dynamically-allocated memory buffer
      * 
-     * \version 0.5.0
-     * \date 2020/03/05
+     * \version 0.5.1
+     * \date 2020/03/06
     */
     class string
     {
