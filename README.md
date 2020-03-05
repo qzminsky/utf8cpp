@@ -1,5 +1,5 @@
 # UTF-⓼-CPP
-![version](https://img.shields.io/badge/version-0.4-brightgreen)
+![version](https://img.shields.io/badge/version-0.5-brightgreen)
 [![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE.md)
 [![help](https://img.shields.io/badge/help-wiki-red)](../../wiki)
 ![cpp-version](https://img.shields.io/badge/C%2B%2B-≥17-blue)
@@ -30,10 +30,10 @@ The class `utf::string` describes a dynamically, array-based, contiguous storage
 utf::string MyString1{ "Amazing chest ahead" };
 
 // Using std::initializer_list with integral code points
-utf::string MyString2{ 'L',0xf6,'w','e','L',0xe9,'o','p','a','r','d' };
+auto MyString2 = utf::string::from_unicode({ 'L',0xf6,'w','e','L',0xe9,'o','p','a','r','d' });
 
 // Using vector of bytes (also UTF-8 representation)
-utf::string MyString3{ std::vector<uint8_t>{'B','y','t','e','s'} };
+auto MyString3 = utf::string::from_bytes({'B','y','t','e','s'});
 ```
 * Iterating over the characters:
 ```C++
@@ -74,7 +74,7 @@ Line.first(Line.chars().reverse().find_if(isspace).as_index()).to_string();
 * Search (`find*(...)`, `contains*(...)`, `count*(...)`) / erasure (`erase(...)`, `remove*(...)`) — *linear* / **O(N)**
 * Length calculation — *linear* / **O(N)** as it requires iteration over every character in the string
 
-Note that a replacement (`replace(...)`) is more complicated. It behaves like an insertion if the new substring is longer (by its `size()`) than the replacement. Otherwise, the operation does not requires an extra memory and behaves like an erasure; both cases have *linear* / **O(N)** time complexity.
+Note that a replacement (`replace*(...)`) is more complicated. It behaves like an insertion if the new substring is longer (by its `size()`) than the replacement. Otherwise, the operation does not requires an extra memory and behaves like an erasure; both cases have *linear* / **O(N)** time complexity.
 
 ## License
 See the [LICENSE](LICENSE.md) file for license rights and limitations (MIT).
