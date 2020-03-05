@@ -32,7 +32,7 @@ namespace utf
      *
      * \details Stores an Unicode string as a dynamically-allocated memory buffer
      * 
-     * \version 0.4.2
+     * \version 0.5.0
      * \date 2020/03/05
     */
     class string
@@ -475,8 +475,16 @@ namespace utf
                 , _direction{ direction::forward }
             {}
 
-            /// A view cannot be constructed by reference to the temporary string
-            view (string const&&) = delete;
+            /**
+             * \brief Converting constructor from C-string
+             * 
+             * \param cstr C-string to construct from
+            */
+            view (const char* cstr)
+                : _forward_begin{ (pointer)(void*)cstr }
+                , _forward_end{ (pointer)(void*)(cstr + std::strlen(cstr)) }
+                , _direction{ direction::forward }
+            {}
 
             /**
              * \brief Constructs a view via pair of iterators
@@ -492,6 +500,22 @@ namespace utf
                 , _forward_end{ std::max(be._base(), en._base()) }
                 , _direction{ dir }
             {}
+
+            /**
+             * \brief Converting C-string assignment
+             * 
+             * \param cstr Source C-string (`const char*`) to assign
+             * 
+             * \return Reference to the left operand
+            */
+            auto operator = (const char* cstr) -> view&
+            {
+                _forward_begin = (pointer)(void*)cstr;
+                _forward_end = _forward_begin + std::strlen(cstr);
+                _direction = direction::forward;
+
+                return *this;
+            }
 
             /**
              * \brief Creates a view-based string as the copy of original
@@ -628,9 +652,9 @@ namespace utf
              * \brief Predicate operator. Returns `true` if view is not empty
             */
             [[nodiscard]]
-            operator bool () const
+            auto operator ! () const -> bool
             {
-                return !is_empty();
+                return is_empty();
             }
 
             /**
@@ -652,19 +676,6 @@ namespace utf
                         return it;
                 }
                 return end();
-            }
-
-            /**
-             * \brief Search for the given substring inside the view
-             * 
-             * \param what Substring to search
-             * 
-             * \return Iterator to the first character of the substring or `end()` if it does not found
-            */
-            [[nodiscard]]
-            auto find (string const& what) const -> iterator
-            {
-                return find(what.chars());
             }
 
             /**
@@ -712,17 +723,6 @@ namespace utf
             }
 
             /**
-             * \brief Predicate. Returns `trie` if the view contains specified substring
-             * 
-             * \param what Substring to check its containing
-            */
-            [[nodiscard]]
-            auto contains (string const& what) const -> bool
-            {
-                return contains(what.chars());
-            }
-
-            /**
              * \brief Predicate. Returns `trie` if the view contains characters satisfying specified criteria
              * 
              * \param pred Predicate to check
@@ -766,19 +766,6 @@ namespace utf
                         ++cnt;
                 }
                 return cnt;
-            }
-
-            /**
-             * \brief Counts the number of substring occurences
-             * 
-             * \param what Substring to count
-             * 
-             * \return Number of occurences
-            */
-            [[nodiscard]]
-            auto count (string const& what) const -> size_type
-            {
-                return count(what.chars());
             }
 
             /**
@@ -1000,16 +987,23 @@ namespace utf
          * 
          * \param data Initializer list
         */
-        string (std::initializer_list<char_type> data)
+        static auto from_unicode (std::initializer_list<char_type> data) -> string
         {
+            string tmp;
+
+            // Total size calculation
             size_type size = 0; for (auto ch : data) {
                 size += _codebytes(ch);
             }
 
-            _repr = new uint8_t[size];
-            _end = bytes() + size;
+            // Span initialization
+            tmp._repr = new uint8_t[size];
+            tmp._end = tmp.bytes() + size;
 
-            auto dit = bytes(); for (auto ch : data) dit = _encode(dit, ch);
+            // Encoding into UTF-8
+            auto dit = tmp.bytes(); for (auto ch : data) dit = _encode(dit, ch);
+
+            return tmp;
         }
 
         /**
@@ -1019,14 +1013,26 @@ namespace utf
          * 
          * \note The reverse operation is `make_bytes()`
         */
-        explicit string (std::vector<uint8_t> const& vec) { _bufinit((void*)vec.data(), vec.size()); }
+        static auto from_bytes (std::vector<uint8_t> const& vec) -> string
+        {
+            string tmp;
+            tmp._bufinit((void*)vec.data(), vec.size());
+
+            return tmp;
+        }
 
         /**
          * \brief Converting constructor from `std::string`
          * 
          * \param stds Source `std::string` to construct from
         */
-        string (std::string const& stds) { _bufinit((void*)stds.data(), stds.length()); }
+        static auto from_std_string (std::string const& stds) -> string
+        {
+            string tmp;
+            tmp._bufinit((void*)stds.data(), stds.length());
+
+            return tmp;
+        }
 
         /**
          * \brief Converting constructor from a C-string
@@ -1401,9 +1407,9 @@ namespace utf
          * \brief Predicate operator. Returns `true` if string is not empty
         */
         [[nodiscard]]
-        operator bool () const
+        auto operator ! () const -> bool
         {
-            return !is_empty();
+            return is_empty();
         }
 
         /**
@@ -1457,18 +1463,6 @@ namespace utf
             std::copy_n(vi.bytes(), vi.size(), _expanded_copy(size() + vi.size()));
 
             return *this;
-        }
-
-        /**
-         * \brief Appends a given string to the end of current
-         *
-         * \param other Appending string
-         *
-         * \return Reference to the modified string
-        */
-        auto push (string const& other) -> string&
-        {
-            return push(other.chars());
         }
 
         /**
@@ -1549,21 +1543,6 @@ namespace utf
         }
 
         /**
-         * \brief Inserts another string into current
-         *
-         * \param pos Inserting position
-         * \param other String to insert
-         *
-         * \return Reference to the modified string
-         * 
-         * \throw invalid_argument
-        */
-        auto insert (size_type pos, string const& other) -> string&
-        {
-            return insert(pos, other.chars());
-        }
-
-        /**
          * \brief Inserts the view into current string
          * 
          * \param iter Inserting position (by iterator)
@@ -1586,21 +1565,6 @@ namespace utf
         }
 
         /**
-         * \brief Inserts another string into current
-         * 
-         * \param iter Inserting position (by iterator)
-         * \param other String to insert
-         * 
-         * \return Reference to the modified string
-         * 
-         * \throw out_of_range
-        */
-        auto insert (view::iterator const& iter, string const& other) -> string&
-        {
-            return insert(iter, other.chars());
-        }
-
-        /**
          * \brief Replaces all occurences of the given view (by its data) by another
          * 
          * \param vi View to replace
@@ -1608,55 +1572,16 @@ namespace utf
          * 
          * \return Reference to the modified string
         */
-        auto substitute (view const& vi, view const& other) -> string&
+        auto replace_all (view const& vi, view const& other) -> string&
         {
             for (;;)
             {
-                if (auto range = find(vi); range) replace(range, other);
+                if (auto range = find(vi); !! range) replace(range, other);
                 else
                     break;
             }
 
             return *this;
-        }
-
-        /**
-         * \brief Replaces all occurences of the given substring (by its data) by another
-         * 
-         * \param what Substring to replace
-         * \param other Replacing data
-         * 
-         * \return Reference to the modified string
-        */
-        auto substitute (string const& what, string const& other) -> string&
-        {
-            return substitute(what.chars(), other.chars());
-        }
-
-        /**
-         * \brief Replaces all occurences of the given view (by its data) by the string
-         * 
-         * \param vi View to replace
-         * \param other Replacing data
-         * 
-         * \return Reference to the modified string
-        */
-        auto substitute (view const& what, string const& other) -> string&
-        {
-            return substitute(what, other.chars());
-        }
-
-        /**
-         * \brief Replaces all occurences of the given substring (by its data) by the view
-         * 
-         * \param what Substring to replace
-         * \param other Replacing data
-         * 
-         * \return Reference to the modified string
-        */
-        auto substitute (string const& what, view const& other) -> string&
-        {
-            return substitute(what.chars(), other);
         }
 
         /**
@@ -1668,7 +1593,7 @@ namespace utf
          * \return Reference to the modified string
         */
         template <typename Functor>
-        auto substitute_if (Functor&& pred, char_type value) -> string&
+        auto replace_all_if (Functor&& pred, char_type value) -> string&
         {
             return *this;
         }
@@ -1681,9 +1606,9 @@ namespace utf
          * 
          * \return Reference to the modified string
         */
-        auto substitute (char_type what, char_type value) -> string&
+        auto replace_all (char_type what, char_type value) -> string&
         {
-            return substitute_if(
+            return replace_all_if(
                 [&what](char_type ch){ return ch == what; },
                 value
             );
@@ -1798,19 +1723,6 @@ namespace utf
         }
 
         /**
-         * \brief Search for the given substring inside entire string
-         * 
-         * \param what Substring to search
-         * 
-         * \return View of first occurrence of the substring or `[end(); end())` if it does not found
-        */
-        [[nodiscard]]
-        auto find (string const& what) const -> view
-        {
-            return find(what.chars());
-        }
-
-        /**
          * \brief Counts the number of substring occurences
          * 
          * \param vi Substring to count (by its view)
@@ -1821,19 +1733,6 @@ namespace utf
         auto count (view const& vi) const -> size_type
         {
             return chars().count(vi);
-        }
-
-        /**
-         * \brief Counts the number of substring occurences
-         * 
-         * \param what Substring to count
-         * 
-         * \return Number of occurences
-        */
-        [[nodiscard]]
-        auto count (string const& what) const -> size_type
-        {
-            return chars().count(what);
         }
 
         /**
@@ -1872,17 +1771,6 @@ namespace utf
         auto contains (view const& vi) const -> bool
         {
             return chars().contains(vi);
-        }
-
-        /**
-         * \brief Predicate. Returns `trie` if the string contains specified substring
-         * 
-         * \param what Substring to check its containing
-        */
-        [[nodiscard]]
-        auto contains (string const& what) const -> bool
-        {
-            return contains(what.chars());
         }
 
         /**
@@ -1963,18 +1851,6 @@ namespace utf
             return *this;
         }
 
-        /**
-         * \brief Removes all occurences of the substring in the current string
-         * 
-         * \param what Substring to remove
-         * 
-         * \return Reference to the modified string
-        */
-        auto remove (string const& what) -> string&
-        {
-            return remove(what.chars());
-        }
-
 
         /**
          * \brief Replaces the characters in the given range by other string
@@ -1986,7 +1862,7 @@ namespace utf
          * 
          * \throw out_of_range
         */
-        auto replace (view const& vi, string const& other) -> string&
+        auto replace (view const& vi, view const& other) -> string&
         {
             auto rsize = vi.size(), osize = other.size();
             auto ptrpos = vi.begin()._base(), tail = vi.end()._base();
@@ -2039,7 +1915,7 @@ namespace utf
          * 
          * \throw invalid_argument
         */
-        auto replace (size_type pos, size_type N, string const& other) -> string&
+        auto replace (size_type pos, size_type N, view const& other) -> string&
         {
             return replace(chars(pos, N), other);
         }
@@ -2054,7 +1930,7 @@ namespace utf
          * 
          * \throw invalid_argument
         */
-        auto replace (size_type pos, string const& other) -> string&
+        auto replace (size_type pos, view const& other) -> string&
         {
             return replace(pos, 1, other);
         }
@@ -2069,7 +1945,7 @@ namespace utf
          * 
          * \throw out_of_range
         */
-        auto replace (view::iterator const& iter, string const& other) -> string&
+        auto replace (view::iterator const& iter, view const& other) -> string&
         {
             return replace({ iter, iter + 1 }, other);
         }
@@ -2077,7 +1953,7 @@ namespace utf
         /**
          * \brief Reallocates the memory buffer used by a string
          *
-         * \return Reference to the modified string object
+         * \return Reference to the modified string
         */
         auto shrink_to_fit () -> string&
         {
