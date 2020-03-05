@@ -649,7 +649,7 @@ namespace utf
             }
 
             /**
-             * \brief Predicate operator. Returns `true` if view is not empty
+             * \brief Predicate operator. Returns `true` if the view is empty
             */
             [[nodiscard]]
             auto operator ! () const -> bool
@@ -709,6 +709,28 @@ namespace utf
                 return find_if(
                     [&value](char_type ch){ return value == ch; }
                 );
+            }
+
+            /**
+             * \brief Predicate. Returns `true` if the view starts with another
+             * 
+             * \param vi View to match
+            */
+            [[nodiscard]]
+            auto starts_with (view const& vi) const -> bool
+            {
+                return (size() >= vi.size()) && std::equal(vi.bytes(), vi.bytes_end(), bytes());
+            }
+
+            /**
+             * \brief Predicate. Returns `true` if the view ends with another
+             * 
+             * \param vi View to match
+            */
+            [[nodiscard]]
+            auto ends_with (view const& vi) const -> bool
+            {
+                return (size() >= vi.size()) && std::equal(vi.bytes(), vi.bytes_end(), bytes_end() - vi.size());
             }
 
             /**
@@ -859,32 +881,6 @@ namespace utf
             }
 
             /**
-             * \brief Compares the view and the string by its contents equality
-             * 
-             * \param str String to compare with
-             * 
-             * \return `true` if the view's data is equivalent to the string's; `false` otherwise
-            */
-            [[nodiscard]]
-            auto operator == (string const& str) const -> bool
-            {
-                return (size() == str.size()) && std::equal(bytes(), bytes_end(), str.bytes());
-            }
-
-            /**
-             * \brief Compares the view and the string by its contents non-equality
-             * 
-             * \param str String to compare with
-             * 
-             * \return `true` if the view's data is differs from the string's; `false` otherwise
-            */
-            [[nodiscard]]
-            auto operator != (string const& str) const -> bool
-            {
-                return !(*this == str);
-            }
-
-            /**
              * \brief Checks if the view's data lexicographically less than the other's
              * 
              * \param vi View to compare with
@@ -896,20 +892,6 @@ namespace utf
             auto operator < (view const& vi) const -> bool
             {
                 return std::lexicographical_compare(begin(), end(), vi.begin(), vi.end());
-            }
-
-            /**
-             * \brief Checks if the view's data lexicographically less than the string's
-             * 
-             * \param str String to compare with
-             * 
-             * \return `true` if the view is lexicographically less than the string;
-             * `false` otherwise
-            */
-            [[nodiscard]]
-            auto operator < (string const& str) const -> bool
-            {
-                return *this < str.chars();
             }
 
             /**
@@ -1306,32 +1288,6 @@ namespace utf
         }
 
         /**
-         * \brief Compares two strings by equality
-         * 
-         * \param str String to compare with
-         * 
-         * \return `true` if `*this` is equivalent to `str`; `false` otherwise
-        */
-        [[nodiscard]]
-        auto operator == (string const& str) const -> bool
-        {
-            return (size() == str.size()) && std::equal(bytes(), bytes_end(), str.bytes());
-        }
-
-        /**
-         * \brief Compares two strings by non-equality
-         * 
-         * \param str String to compare with
-         * 
-         * \return `true` if `*this` differs from `str`; `false` otherwise
-        */
-        [[nodiscard]]
-        auto operator != (string const& str) const -> bool
-        {
-            return !(*this == str);
-        }
-
-        /**
          * \brief Compares the string and the view by its contents equality
          * 
          * \param vi View to compare with
@@ -1372,20 +1328,6 @@ namespace utf
         }
 
         /**
-         * \brief Checks if the string's data lexicographically less than the other's
-         * 
-         * \param str String to compare with
-         * 
-         * \return `true` if the string is lexicographically less than the second;
-         * `false` otherwise
-        */
-        [[nodiscard]]
-        auto operator < (string const& str) const -> bool
-        {
-            return chars() < str.chars();
-        }
-
-        /**
          * \brief Predicate. Returns `true` if all of characters in the string are valid UTF-8-encoded
         */
         [[nodiscard]]
@@ -1404,7 +1346,7 @@ namespace utf
         }
 
         /**
-         * \brief Predicate operator. Returns `true` if string is not empty
+         * \brief Predicate operator. Returns `true` if the string is empty
         */
         [[nodiscard]]
         auto operator ! () const -> bool
@@ -1652,7 +1594,7 @@ namespace utf
         }
 
         /**
-         * \brief Removes the characters in the given range
+         * \brief Removes characters in the given range
          *
          * \param vi View providing the range
          *
@@ -1669,7 +1611,7 @@ namespace utf
                 throw out_of_range{ "Span error" };
             }
             else {
-                std::copy_n(vi_en, bytes_end() - vi_en, vi_be);
+                std::copy(vi_en, bytes_end(), vi_be);
                 _end -= vi.size();
             }
 
@@ -1677,7 +1619,7 @@ namespace utf
         }
 
         /**
-         * \brief Removes some characters starting from the given index
+         * \brief Removes `N` characters starting from the given index
          *
          * \param pos Erasing start position
          * \param N Number of characters to remove
@@ -1720,6 +1662,28 @@ namespace utf
             if (!! it_1) it_2._ptrbase = it_1._base() + vi.size();
 
             return { it_1, it_2 };
+        }
+
+        /**
+         * \brief Predicate. Returns `true` if the string starts with the view's data
+         * 
+         * \param vi View to match
+        */
+        [[nodiscard]]
+        auto starts_with (view const& vi) const -> bool
+        {
+            return chars().starts_with(vi);
+        }
+
+        /**
+         * \brief Predicate. Returns `true` if the string ends with the view's data
+         * 
+         * \param vi View to match
+        */
+        [[nodiscard]]
+        auto ends_with (view const& vi) const -> bool
+        {
+            return chars().ends_with(vi);
         }
 
         /**
