@@ -3,6 +3,8 @@
 #ifndef UTF8CPP_H
 #define UTF8CPP_H
 
+static_assert(__cplusplus >= 201700L, "C++17 or higher is required");
+
 #include <algorithm>
 #include <cstdint>
 #include <cstdlib>
@@ -31,7 +33,7 @@ namespace utf
      * \details Stores an Unicode string as a dynamically-allocated memory buffer
      * 
      * \version 0.4.2
-     * \date 2020/03/04
+     * \date 2020/03/05
     */
     class string
     {
