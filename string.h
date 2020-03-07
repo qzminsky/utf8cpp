@@ -32,8 +32,8 @@ namespace utf
      *
      * \details Stores an Unicode string as a dynamically-allocated memory buffer
      * 
-     * \version 0.5.1
-     * \date 2020/03/06
+     * \version 0.5.2
+     * \date 2020/03/07
     */
     class string
     {
@@ -1122,6 +1122,8 @@ namespace utf
         auto operator = (const char* cstr) -> string&
         {
             _bufinit((void*)cstr, std::strlen(cstr));
+            
+            return *this;
         }
 
         /**
