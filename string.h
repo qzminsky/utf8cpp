@@ -895,6 +895,48 @@ namespace utf
             }
 
             /**
+             * \brief Checks if the view's data lexicographically greater than the other's
+             * 
+             * \param vi View to compare with
+             * 
+             * \return `true` if the first view is lexicographically greater than the second;
+             * `false` otherwise
+            */
+            [[nodiscard]]
+            auto operator > (view const& vi) const -> bool
+            {
+                return vi < *this;
+            }
+
+            /**
+             * \brief Checks if the view's data lexicographically less or equal to the other's
+             * 
+             * \param vi View to compare with
+             * 
+             * \return `true` if the first view is lexicographically less or equal to the second;
+             * `false` otherwise
+            */
+            [[nodiscard]]
+            auto operator <= (view const& vi) const -> bool
+            {
+                return !(*this > vi);
+            }
+
+            /**
+             * \brief Checks if the view's data lexicographically greater or equal to the other's
+             * 
+             * \param vi View to compare with
+             * 
+             * \return `true` if the first view is lexicographically greater or equal to the second;
+             * `false` otherwise
+            */
+            [[nodiscard]]
+            auto operator >= (view const& vi) const -> bool
+            {
+                return !(*this < vi);
+            }
+
+            /**
              * \brief Predicate. Checks if the view contains only valid UTF-8 characters
             */
             [[nodiscard]]
@@ -1180,12 +1222,27 @@ namespace utf
         }
 
         /**
-         * \brief Creates and returns an `std::vector` object containing buffer bytes data
+         * \brief Creates and returns an `std::vector` object containing the buffer bytes data
         */
         [[nodiscard]]
-        auto make_bytes () const -> std::vector<uint8_t>
+        auto as_bytes () const -> std::vector<uint8_t>
         {
             return std::vector<uint8_t>(bytes(), bytes_end());
+        }
+
+        /**
+         * \brief Creates and returns an `std::vector` object containing the characters' code points
+        */
+        [[nodiscard]]
+        auto as_unicode () const -> std::vector<char_type>
+        {
+            std::vector<char_type> tmp;
+
+            for (auto ptr = bytes(); ptr != bytes_end(); ptr += _charsize(ptr))
+            {
+                tmp.push_back(_decode(ptr));
+            }
+            return tmp;
         }
 
         /**
@@ -1325,6 +1382,48 @@ namespace utf
         auto operator < (view const& vi) const -> bool
         {
             return chars() < vi;
+        }
+
+        /**
+         * \brief Checks if the string's data lexicographically greater than the view's
+         * 
+         * \param vi View to compare with
+         * 
+         * \return `true` if the string is lexicographically greater than the view;
+         * `false` otherwise
+        */
+        [[nodiscard]]
+        auto operator > (view const& vi) const -> bool
+        {
+            return chars() > vi;
+        }
+
+        /**
+         * \brief Checks if the string's data lexicographically less or equal to the view's
+         * 
+         * \param vi View to compare with
+         * 
+         * \return `true` if the string is lexicographically less or equal to the view;
+         * `false` otherwise
+        */
+        [[nodiscard]]
+        auto operator <= (view const& vi) const -> bool
+        {
+            return chars() <= vi;
+        }
+
+        /**
+         * \brief Checks if the string's data lexicographically greater or equal to the view's
+         * 
+         * \param vi View to compare with
+         * 
+         * \return `true` if the string is lexicographically greater or equal to the view;
+         * `false` otherwise
+        */
+        [[nodiscard]]
+        auto operator >= (view const& vi) const -> bool
+        {
+            return chars() >= vi;
         }
 
         /**
