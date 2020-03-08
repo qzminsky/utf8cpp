@@ -364,7 +364,7 @@ namespace utf
                 [[nodiscard]]
                 auto operator <= (iterator const& other) const -> bool
                 {
-                    return !(*this > other);
+                    return *this < other || *this == other;
                 }
 
                 /**
@@ -396,7 +396,7 @@ namespace utf
                 [[nodiscard]]
                 auto operator >= (iterator const& other) const -> bool
                 {
-                    return !(*this < other);
+                    return other < *this || *this == other;
                 }
 
                 /**
@@ -1122,7 +1122,7 @@ namespace utf
         auto operator = (const char* cstr) -> string&
         {
             _bufinit((void*)cstr, std::strlen(cstr));
-
+            
             return *this;
         }
 
