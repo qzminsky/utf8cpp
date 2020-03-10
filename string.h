@@ -1,5 +1,8 @@
 #pragma once
 
+// Copyright © 2020 Alex Qzminsky
+// License: MIT
+
 #ifndef UTF8CPP_H
 #define UTF8CPP_H
 
@@ -32,8 +35,8 @@ namespace utf
      *
      * \details Stores an Unicode string as a dynamically-allocated memory buffer
      * 
-     * \version 0.5.2
-     * \date 2020/03/07
+     * \version 0.5.3
+     * \date 2020/03/11
     */
     class string
     {
@@ -76,6 +79,11 @@ namespace utf
         {
         public:
 
+            /**
+             * \enum direction
+             * 
+             * \brief Describes a view's direction
+            */
             enum class direction : bool
             {
                 forward = true,
@@ -396,7 +404,7 @@ namespace utf
                 [[nodiscard]]
                 auto operator >= (iterator const& other) const -> bool
                 {
-                    return other < *this || *this == other;
+                    return *this > other || *this == other;
                 }
 
                 /**
@@ -627,7 +635,7 @@ namespace utf
             }
 
             /**
-             * \brief Returns the number of Unicode characters in the span
+             * \brief Returns the number of Unicode characters in the view
              *
              * \warning This isn't equivalent to `size()`, which returns exactly the number of _bytes_.
              * Every UTF-8 character has a different size, from 1 to 4 bytes
@@ -712,7 +720,7 @@ namespace utf
             }
 
             /**
-             * \brief Predicate. Returns `true` if the view starts with another
+             * \brief Predicate. Returns `true` if the view starts with another one
              * 
              * \param vi View to match
             */
@@ -723,7 +731,7 @@ namespace utf
             }
 
             /**
-             * \brief Predicate. Returns `true` if the view ends with another
+             * \brief Predicate. Returns `true` if the view ends with another one
              * 
              * \param vi View to match
             */
@@ -958,6 +966,19 @@ namespace utf
             }
 
         private:
+
+            /**
+             * \internal
+             * \brief Constructs a view via pair of pointers
+             * 
+             * \param start Beginning of the range
+             * \param end Ending of the range
+            */
+            view (pointer start, pointer end)
+                : _forward_begin{ start }
+                , _forward_end{ end }
+                , _direction{ direction::forward }
+            {}
 
             /**
              * \internal
@@ -2040,6 +2061,93 @@ namespace utf
             erase(pos, npos);
 
             return tmp;
+        }
+
+        /**
+         * \brief Removes all characters satisfying specified criteria from both sides of the string
+         * 
+         * \param pred Checking predicate 
+         * 
+         * \return Reference to the modified string
+        */
+        template <typename Functor>
+        auto trim (Functor&& pred) -> string&
+        {
+            while (pred(back())) pop();
+
+            for (auto start = bytes(); start < bytes_end(); start += _charsize(start))
+            {
+                if (!pred(_decode(start)))
+                {
+                    erase({ bytes(), start });
+                    break;
+                }
+            }
+
+            return *this;
+        }
+
+        /**
+         * \brief Removes all characters satisfying specified criteria from both sides of the string
+         * 
+         * \param value Character to trim (by its code point)
+         * 
+         * \return Reference to the modified string
+        */
+        auto trim (char_type value) -> string&
+        {
+            return trim(
+                [&value](char_type ch){ return value == ch; }
+            );
+        }
+
+        /**
+         * \brief Removes all whitespace-like characters from both sides of the string
+         * 
+         * \return Reference to the modified string
+        */
+        auto trim () -> string&
+        {
+            return trim(std::isspace);
+        }
+
+        /**
+         * \brief Removes the whitespaces from the start and the end and replaces all
+         * sequences of internal whitespace with a single space
+         * 
+         * \return Reference to the modified string
+        */
+        auto simplify () -> string&
+        {
+            // Trimming whitespaces
+            trim();
+
+            // Simplifying internal spaces
+            bool series = false;
+
+            for (
+                pointer current = bytes(), start;
+                current != bytes_end();
+                current += _charsize(current)
+            ) {
+                if (std::isspace(_decode(current)))
+                {
+                    if (!series)
+                    {
+                        start = current;
+                        series = true;
+                    }
+                }
+                else if (series)
+                {
+                    replace({ start, current }, " ");
+
+                    current = start;
+                    series = false;
+                }
+            }
+
+            return *this;
         }
 
         /**
