@@ -1,6 +1,6 @@
 ![utf8cpp](https://user-images.githubusercontent.com/54913619/76170749-e8ae9b80-6195-11ea-8780-efbf16e64d9a.png)
 
-![version](https://img.shields.io/badge/version-0.5-brightgreen)
+![version](https://img.shields.io/badge/version-0.6-brightgreen)
 [![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE.md)
 [![help](https://img.shields.io/badge/help-wiki-red)](../../wiki)
 ![cpp-version](https://img.shields.io/badge/C%2B%2B-≥17-blue)
@@ -18,8 +18,8 @@ The class `utf::string` describes a dynamically, array-based, contiguous storage
 * ...and rights to view and change are completely divided between `string`s and `view`s by design!
 
 ### Installation
-1. Download and copy the `string.h` file into your project headers' directory;
-2. `#include` it;
+1. [Download](https://github.com/qzminsky/utf8cpp/archive/v0.6.0.zip) the library source;
+2. `#include` the `string.h` file in your C++ project;
 3. Enjoy!
 
 > ⚠️ *Note that the library requires C++17 support*
