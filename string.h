@@ -35,7 +35,7 @@ namespace utf
      *
      * \details Stores an Unicode string as a dynamically-allocated memory buffer
      * 
-     * \version 0.5.3
+     * \version 0.6.0
      * \date 2020/03/11
     */
     class string
@@ -666,6 +666,59 @@ namespace utf
             }
 
             /**
+             * \brief Returns a vector of the iterators pointing to the every occurence of the given substring
+             * 
+             * \param vi Substring to search (by its view)
+            */
+            [[nodiscard]]
+            auto matches (view const& vi) const -> std::vector<iterator>
+            {
+                std::vector<iterator> res;
+
+                for (auto it = begin(); !! it; ++it)
+                {
+                    if (
+                        it._base() + vi.size() <= bytes_end() &&
+                        std::equal(vi.bytes(), vi.bytes_end(), it._base())
+                    )
+                        res.push_back(it);
+                }
+                return res;
+            }
+
+            /**
+             * \brief Returns a vector of the iterators pointing to the every occurence of all characters
+             * satisfying specified criteria
+             * 
+             * \param pred Predicate to check
+            */
+            template <typename Functor>
+            [[nodiscard]]
+            auto matches_if (Functor&& pred) const -> std::vector<iterator>
+            {
+                std::vector<iterator> res;
+
+                for (auto it = begin(); !! it; ++it)
+                {
+                    if (pred(*it)) res.push_back(it);
+                }
+                return res;
+            }
+
+            /**
+             * \brief Returns a vector of the iterators pointing to the every occurence of a character
+             * 
+             * \param value Character to search
+            */
+            [[nodiscard]]
+            auto matches (char_type value) const -> std::vector<iterator>
+            {
+                return matches_if(
+                    [&value](char_type ch){ return value == ch; }
+                );
+            }
+
+            /**
              * \brief Search for the given substring inside the view
              * 
              * \param vi Substring to search (by its view)
@@ -965,6 +1018,18 @@ namespace utf
                 return true;
             }
 
+            /**
+             * \brief Swaps the spans of two views
+             * 
+             * \param other View to swap
+            */
+            auto swap (view& other) noexcept -> void
+            {
+                std::swap(_forward_begin, other._forward_begin);
+                std::swap(_forward_end, other._forward_end);
+                std::swap(_direction, other._direction);
+            }
+
         private:
 
             /**
@@ -1004,8 +1069,8 @@ namespace utf
         };
         // !SECTION
 
-        friend auto read (std::istream&) -> char_type;
-        friend auto write (std::ostream&, char_type) -> void;
+        friend auto get (std::istream&) -> char_type;
+        friend auto put (std::ostream&, char_type) -> void;
         friend auto operator >> (std::istream&, string&) -> std::istream&;
 
         /**
@@ -1025,7 +1090,10 @@ namespace utf
          * 
          * \param other String to move from
         */
-        string (string&& other) noexcept : _repr{ std::exchange(other._repr, nullptr) }, _end{ std::exchange(other._end, nullptr) } {}
+        string (string&& other) noexcept
+            : _repr{ std::exchange(other._repr, nullptr) }
+            , _end{ std::exchange(other._end, nullptr) }
+        {}
 
         /**
          * \brief Constructs a string via given array of Unicode code points
@@ -2413,7 +2481,7 @@ namespace utf
      * \return Character's code point
     */
     [[nodiscard]]
-    auto read (std::istream& in) -> string::char_type
+    auto get (std::istream& in) -> string::char_type
     {
         std::remove_pointer<string::pointer>::type code[4] {};
 
@@ -2432,7 +2500,7 @@ namespace utf
      * \param out Output stream to write into
      * \param value Character's code point
     */
-    auto write (std::ostream& out, string::char_type value) -> void
+    auto put (std::ostream& out, string::char_type value) -> void
     {
         std::remove_pointer<string::pointer>::type code[5] {};
         string::_encode(code, value);
@@ -2453,7 +2521,7 @@ namespace utf
         auto tmp_size = to.size();
         to._end = to.bytes();
 
-        for (auto ch = read(is); is && !isspace(ch); ch = read(is))
+        for (auto ch = get(is); is && !isspace(ch); ch = get(is))
         {
             // Reuse available memory to avoid reallocation
             if (to.size() + string::_codebytes(ch) <= tmp_size)
@@ -2477,7 +2545,7 @@ namespace utf
     {
         for (auto ch : vi)
         {
-            write(os, ch);
+            put(os, ch);
         }
         return os;
     }
@@ -2569,14 +2637,25 @@ namespace std
     };
 
     /**
-     * \brief std::swap implementation for strings
+     * \brief `std::swap` specialization for strings
      * 
-     * \param s1 First string
-     * \param s2 Second string
+     * \param s1 First swappable string
+     * \param s2 Second swappable string
     */
     auto swap (utf::string& s1, utf::string& s2) noexcept -> void
     {
         s1.swap(s2);
+    }
+
+    /**
+     * \brief `std::swap` specialization for views
+     * 
+     * \param v1 First swappable view
+     * \param v2 Second swappable view
+    */
+    auto swap(utf::string_view& v1, utf::string_view& v2) noexcept -> void
+    {
+        v1.swap(v2);
     }
 }
 
