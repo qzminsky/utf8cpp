@@ -17,6 +17,7 @@ static_assert(__cplusplus >= 201700L, "C++17 or higher is required");
 #include <iostream>
 #include <iterator>
 #include <limits>
+#include <numeric>
 #include <string>
 #include <type_traits>
 #include <vector>
@@ -35,8 +36,8 @@ namespace utf
      *
      * \details Stores an Unicode string as a dynamically-allocated memory buffer
      * 
-     * \version 0.6.0
-     * \date 2020/03/11
+     * \version 0.6.1
+     * \date 2020/03/14
     */
     class string
     {
@@ -1105,9 +1106,11 @@ namespace utf
             string tmp;
 
             // Total size calculation
-            size_type size = 0; for (auto ch : data) {
-                size += _codebytes(ch);
-            }
+            auto size = std::accumulate
+            (
+                data.begin(), data.end(), (size_type)0,
+                [](auto c, auto v){ return c + _codebytes(v); }
+            );
 
             // Span initialization
             tmp._repr = new uint8_t[size];
