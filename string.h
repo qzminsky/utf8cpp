@@ -27,6 +27,7 @@ namespace utf
     // ANCHOR Exceptions classes
     using out_of_range = std::out_of_range;
     using invalid_argument = std::invalid_argument;
+    using range_error = std::range_error;
 
     /**
      * \class string
@@ -36,8 +37,8 @@ namespace utf
      *
      * \details Stores an Unicode string as a dynamically-allocated memory buffer
      * 
-     * \version 0.6.1
-     * \date 2020/03/14
+     * \version 0.6.2
+     * \date 2020/03/15
     */
     class string
     {
@@ -710,12 +711,16 @@ namespace utf
              * \brief Returns a vector of the iterators pointing to the every occurence of a character
              * 
              * \param value Character to search
+             * 
+             * \throw range_error
             */
             [[nodiscard]]
             auto matches (char_type value) const -> std::vector<iterator>
             {
+                _validate_char(value, "Matching with an invalid Unicode character");
+
                 return matches_if(
-                    [&value](char_type ch){ return value == ch; }
+                    [&value] (char_type ch) { return value == ch; }
                 );
             }
 
@@ -764,12 +769,16 @@ namespace utf
              * \param value Character to search
              * 
              * \return Iterator to the first occurence of the given character
+             * 
+             * \throw range_error
             */
             [[nodiscard]]
             auto find (char_type value) const -> iterator
             {
+                _validate_char(value, "Search for an invalid Unicode character");
+
                 return find_if(
-                    [&value](char_type ch){ return value == ch; }
+                    [&value] (char_type ch) { return value == ch; }
                 );
             }
 
@@ -822,6 +831,8 @@ namespace utf
              * \brief Predicate. Returns `trie` if the view contains at least single specified character
              * 
              * \param value Character to check its containing (given by its code point)
+             * 
+             * \throw range_error
             */
             [[nodiscard]]
             auto contains (char_type value) const -> bool
@@ -878,12 +889,16 @@ namespace utf
              * \param value Character to count
              * 
              * \return Number of occurences
+             * 
+             * \throw range_error
             */
             [[nodiscard]]
             auto count (char_type value) const -> size_type
             {
+                _validate_char(value, "Counting of an invalid Unicode character");
+
                 return count_if(
-                    [&value](char_type ch){ return value == ch; }
+                    [&value] (char_type ch) { return value == ch; }
                 );
             }
 
@@ -1100,6 +1115,8 @@ namespace utf
          * \brief Constructs a string via given array of Unicode code points
          * 
          * \param data Initializer list
+         * 
+         * \throw range_error
         */
         static auto from_unicode (std::initializer_list<char_type> data) -> string
         {
@@ -1109,7 +1126,7 @@ namespace utf
             auto size = std::accumulate
             (
                 data.begin(), data.end(), (size_type)0,
-                [](auto c, auto v){ return c + _codebytes(v); }
+                [] (auto c, auto v) { return c + _codebytes(v); }
             );
 
             // Span initialization
@@ -1117,7 +1134,13 @@ namespace utf
             tmp._end = tmp.bytes() + size;
 
             // Encoding into UTF-8
-            auto dit = tmp.bytes(); for (auto ch : data) dit = _encode(dit, ch);
+            auto dit = tmp.bytes();
+            
+            for (auto ch : data)
+            {
+                _validate_char(ch, "Source array contains a character with invalid code point");
+                dit = _encode(dit, ch);
+            }
 
             return tmp;
         }
@@ -1128,11 +1151,15 @@ namespace utf
          * \param vec UTF-8-encoded characters' vector to construct from
          * 
          * \note The reverse operation is `make_bytes()`
+         * 
+         * \throw range_error
         */
         static auto from_bytes (std::vector<uint8_t> const& vec) -> string
         {
             string tmp;
             tmp._bufinit((void*)vec.data(), vec.size());
+
+            if (!tmp.is_valid()) throw range_error{ "Source vector contains invalid UTF-8 data" };
 
             return tmp;
         }
@@ -1411,6 +1438,17 @@ namespace utf
         }
 
         /**
+         * \brief Predicate. Returns `true` if the character is UTF-8-valid
+         * 
+         * \param ch Character's code point
+        */
+        [[nodiscard]]
+        static auto is_valid (char_type ch) -> bool
+        {
+            return ch <= 0x10FFFF;
+        }
+
+        /**
          * \brief Converts all ASCII characters in the string into lowercase
          * 
          * \return Reference to the modified string
@@ -1578,9 +1616,12 @@ namespace utf
          * \param ch Code point of appending character
          *
          * \return Reference to the modified string
+         * 
+         * \throw range_error
         */
         auto push (char_type ch) -> string&
         {
+            _validate_char(ch, "Pushing an invalid Unicode character");
             _encode(_expanded_copy(size() + _codebytes(ch)), ch);
 
             return *this;
@@ -1622,9 +1663,12 @@ namespace utf
          * \return Reference to the modified string
          * 
          * \throw invalid_argument
+         * \throw range_error
         */
         auto insert (size_type pos, char_type value) -> string&
         {
+            _validate_char(value, "Invalid Unicode character insertion");
+
             if (pos < 0) throw invalid_argument{ "Negative inserting position" };
 
             _encode(_spread((chars().begin() + pos)._base(), size() + _codebytes(value)), value);
@@ -1640,9 +1684,12 @@ namespace utf
          * \return Reference to the modified string
          * 
          * \throw out_of_range
+         * \throw range_error
         */
         auto insert (view::iterator const& iter, char_type value) -> string&
         {
+            _validate_char(value, "Invalid Unicode character insertion");
+
             if (auto ptr = iter._base(); _range_check(ptr))
             {
                 throw out_of_range{ "Given iterator does not point into modifying string" };
@@ -1715,7 +1762,6 @@ namespace utf
                 else
                     break;
             }
-
             return *this;
         }
 
@@ -1726,10 +1772,21 @@ namespace utf
          * \param value Replacing character's code point
          * 
          * \return Reference to the modified string
+         * 
+         * \throw range_error
         */
         template <typename Functor>
         auto replace_all_if (Functor&& pred, char_type value) -> string&
         {
+            _validate_char(value, "Replacing by an invalid Unicode character");
+
+            // FIXME Low performance!
+
+            auto matches = chars().matches_if(pred);
+            for (auto& off : matches)
+            {
+                replace(off, string::from_unicode({ value }));
+            }
             return *this;
         }
 
@@ -1740,11 +1797,15 @@ namespace utf
          * \param value Replacing character's code point
          * 
          * \return Reference to the modified string
+         * 
+         * \throw range_error
         */
         auto replace_all (char_type what, char_type value) -> string&
         {
+            _validate_char(what, "Replacing an invalid Unicode character");
+
             return replace_all_if(
-                [&what](char_type ch){ return ch == what; },
+                [&what] (char_type ch) { return ch == what; },
                 value
             );
         }
@@ -1912,6 +1973,8 @@ namespace utf
          * \param value Character to count
          * 
          * \return Number of occurences
+         * 
+         * \throw range_error
         */
         [[nodiscard]]
         auto count (char_type value) const -> size_type
@@ -1934,6 +1997,8 @@ namespace utf
          * \brief Predicate. Returns `trie` if the string contains at least single specified character
          * 
          * \param value Character to check its containing (given by its code point)
+         * 
+         * \throw range_error
         */
         [[nodiscard]]
         auto contains (char_type value) const -> bool
@@ -1978,11 +2043,15 @@ namespace utf
          * \param value Character to remove (presented by its code point)
          * 
          * \return Reference to the modified string
+         * 
+         * \throw range_error
         */
         auto remove (char_type value) -> string&
         {
+            _validate_char(value, "Removing an invalid Unicode character");
+
             return remove_if(
-                [&value](char_type ch){ return ch == value; }
+                [&value] (char_type ch) { return ch == value; }
             );
         }
 
@@ -2013,7 +2082,7 @@ namespace utf
          * \brief Replaces the characters in the given range by other string
          *
          * \param vi View providing the range
-         * \param other String to replace
+         * \param other New substring
          *
          * \return Reference to the modified string object
          * 
@@ -2066,7 +2135,7 @@ namespace utf
          *
          * \param pos Replacement start position
          * \param N Number of characters to replace
-         * \param other String to replace
+         * \param other New substring
          *
          * \return Reference to the modified string object
          * 
@@ -2081,7 +2150,7 @@ namespace utf
          * \brief Replaces a character by given index by other string
          *
          * \param pos Replacement position
-         * \param other String to replace
+         * \param other New substring
          *
          * \return Reference to the modified string object
          * 
@@ -2093,10 +2162,10 @@ namespace utf
         }
 
         /**
-         * \brief Replaces a character by an iterator by other string
+         * \brief Replaces a character (by its iterator) by a new substring
          *
          * \param iter Replacement position (by an iterator)
-         * \param other String to replace
+         * \param other New substring
          *
          * \return Reference to the modified string object
          * 
@@ -2164,11 +2233,15 @@ namespace utf
          * \param value Character to trim (by its code point)
          * 
          * \return Reference to the modified string
+         * 
+         * \throw range_error
         */
         auto trim (char_type value) -> string&
         {
+            _validate_char(value, "Trimming an invalid Unicode character");
+
             return trim(
-                [&value](char_type ch){ return value == ch; }
+                [&value] (char_type ch) { return value == ch; }
             );
         }
 
@@ -2406,6 +2479,20 @@ namespace utf
         auto _range_check (pointer ptr) -> bool
         {
             return ptr < bytes() || ptr > bytes_end();
+        }
+
+        /**
+         * \internal
+         * \brief Provokes a `range_error` exception throwing in case of invalid character's code point
+         * 
+         * \param value Character to check (by its code point)
+         * \param exception_msg Message into exception object
+         * 
+         * \throw range_error
+        */
+        static auto _validate_char (char_type value, const char* exception_msg) -> void
+        {
+            if (!is_valid(value)) throw range_error{ exception_msg };
         }
 
         /**
