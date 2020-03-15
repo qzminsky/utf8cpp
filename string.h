@@ -497,6 +497,19 @@ namespace utf
             {}
 
             /**
+             * \brief Converting constructor from an iterator
+             * 
+             * \param it Begin iterator
+             * 
+             * \details Creates a view over single character by an iterator
+            */
+            view (iterator it)
+                : _forward_begin{ it._base() }
+                , _forward_end{ (it._forward_increase())._base() }
+                , _direction{ direction::forward }
+            {}
+
+            /**
              * \brief Constructs a view via pair of iterators
              * 
              * \param be Begin iterator
@@ -2173,7 +2186,11 @@ namespace utf
         */
         auto replace (view::iterator const& iter, view const& other) -> string&
         {
-            return replace({ iter, iter + 1 }, other);
+            if (_range_check(iter._base()))
+            {
+                throw out_of_range{ "Given iterator does not point into modifying string" };
+            }
+            return replace(view{ iter }, other);
         }
 
         /**
