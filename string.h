@@ -24,10 +24,25 @@ static_assert(__cplusplus >= 201700L, "C++17 or higher is required");
 
 namespace utf
 {
-    // ANCHOR Exceptions classes
-    using out_of_range = std::out_of_range;
+    // SECTION Exceptions classes
+    using out_of_range     = std::out_of_range;
     using invalid_argument = std::invalid_argument;
-    using range_error = std::range_error;
+    using range_error      = std::range_error;
+    using underflow_error  = std::underflow_error;
+    using length_error     = std::length_error;
+
+    struct bad_operation : std::runtime_error
+    {
+        /**
+         * \brief C-stringified constructor
+         * 
+         * \param msg Exception message
+        */
+        explicit bad_operation (const char* msg)
+            : std::runtime_error{ msg }
+        {}
+    };
+    // !SECTION
 
     /**
      * \class string
@@ -37,18 +52,18 @@ namespace utf
      *
      * \details Stores an Unicode string as a dynamically-allocated memory buffer
      * 
-     * \version 0.6.2
-     * \date 2020/03/15
+     * \version 0.7.0
+     * \date 2020/03/16
     */
     class string
     {
     public:
 
         // ANCHOR Member types
-        using size_type = intmax_t;
+        using size_type       = intmax_t;
         using difference_type = ptrdiff_t;
-        using pointer = uint8_t*;
-        using char_type = uint32_t;
+        using pointer         = uint8_t*;
+        using char_type       = uint32_t;
 
         /// The special value. The exact meaning depends on context
         static constexpr auto npos = std::numeric_limits<size_type>::max();
@@ -135,9 +150,45 @@ namespace utf
                 iterator () = delete;
 
                 /**
+                 * \brief Untying the iterator from its parent
+                */
+                auto untie () -> void
+                {
+                    _parent = nullptr;
+                }
+
+                /**
+                 * \brief Tying the iterator to the new parent view
+                 * 
+                 * \param to New parent view
+                 * 
+                 * \throw out_of_range
+                */
+                auto tie (view& to) -> void
+                {
+                    if (to.bytes() - 1 > _base() ||
+                        to.bytes_end() < _base()
+                    ) {
+                        throw out_of_range{ "Out of bounds iterator binding" };
+                    }
+
+                    _parent = &to;
+                }
+
+                /**
+                 * \brief Predicate. Checks if the iterator have the parent view
+                */
+                auto is_bound() const -> bool
+                {
+                    return _parent;
+                }
+
+                /**
                  * \brief Offsets the iterator to the next character consider direction
                  * 
                  * \return Reference to the modified iterator
+                 * 
+                 * \throw bad_operation
                 */
                 auto operator ++ () -> iterator&
                 {
@@ -148,6 +199,8 @@ namespace utf
                  * \brief Offsets the iterator to the previous character consider direction
                  * 
                  * \return Reference to the modified iterator
+                 * 
+                 * \throw bad_operation
                 */
                 auto operator -- () -> iterator&
                 {
@@ -158,6 +211,8 @@ namespace utf
                  * \brief Offsets the iterator to the next character consider direction
                  * 
                  * \return Previous iterator's state as copy of it
+                 * 
+                 * \throw bad_operation
                 */
                 [[nodiscard]]
                 auto operator ++ (int) -> iterator
@@ -170,6 +225,8 @@ namespace utf
                  * \brief Offsets the iterator to the previous character consider direction
                  * 
                  * \return Previous iterator's state as copy of it
+                 * 
+                 * \throw bad_operation
                 */
                 [[nodiscard]]
                 auto operator -- (int) -> iterator
@@ -184,6 +241,8 @@ namespace utf
                  * \param count Number of hops
                  * 
                  * \return Reference to the modified iterator
+                 * 
+                 * \throw bad_operation
                 */
                 auto operator += (difference_type count) -> iterator&
                 {
@@ -211,6 +270,8 @@ namespace utf
                  * \param count Number of hops
                  * 
                  * \return Reference to the modified iterator
+                 * 
+                 * \throw bad_operation
                 */
                 auto operator -= (difference_type count) -> iterator&
                 {
@@ -223,6 +284,8 @@ namespace utf
                  * \param count Number of hops
                  * 
                  * \return Iterator with corresponding changes
+                 * 
+                 * \throw bad_operation
                 */
                 [[nodiscard]]
                 auto operator + (difference_type count) const -> iterator
@@ -237,6 +300,8 @@ namespace utf
                  * \param count Number of hops
                  * 
                  * \return Iterator with corresponding changes
+                 * 
+                 * \throw bad_operation
                 */
                 [[nodiscard]]
                 auto operator - (difference_type count) const -> iterator
@@ -254,6 +319,8 @@ namespace utf
                  * Otherwise, returns the negative number of increments from `*this` to `other`
                  * 
                  * \note It also works with backward-directed views' iterators
+                 * 
+                 * \throw bad_operation
                 */
                 [[nodiscard]]
                 auto operator - (iterator other) const -> difference_type
@@ -284,7 +351,7 @@ namespace utf
                 [[nodiscard]]
                 auto operator * () const -> char_type
                 {
-                    if (!*this)
+                    if (is_bound() && !*this)
                     {
                         throw out_of_range{ "Out of bounds iterator dereferencing" };
                     }
@@ -301,6 +368,7 @@ namespace utf
                  * \note This operator returns a value, not a reference
                  * 
                  * \throw out_of_range
+                 * \throw bad_operation
                 */
                 [[nodiscard]]
                 auto operator [] (difference_type index) const -> char_type
@@ -312,6 +380,8 @@ namespace utf
                  * \brief Transforms an iterator into character's index in the parent view
                  * 
                  * \return Count of hops from the beginning of the view
+                 * 
+                 * \throw bad_operation
                 */
                 [[nodiscard]]
                 auto as_index () const -> size_type
@@ -354,10 +424,15 @@ namespace utf
                  * 
                  * \details The iterator `X` is less than another, if it is possible to make them
                  * equal each other by increasing `X` sequentally (at least once)
+                 * 
+                 * \throw bad_operation
                 */
                 [[nodiscard]]
                 auto operator < (iterator const& other) const -> bool
                 {
+                    _confirm_op("Untied iterators are unordered");
+                    other._confirm_op("Untied iterators are unordered");
+
                     return _parent->is_forward() ? (_base() < other._base()) : (_base() > other._base());
                 }
 
@@ -370,6 +445,8 @@ namespace utf
                  * 
                  * \details The iterator `X` is less than another, if it is possible to make them
                  * equal each other by increasing `X` sequentally (or they are equal already)
+                 * 
+                 * \throw bad_operation
                 */
                 [[nodiscard]]
                 auto operator <= (iterator const& other) const -> bool
@@ -386,6 +463,8 @@ namespace utf
                  * 
                  * \details The iterator `X` is greater than another, if it is not possible to
                  * make them equal each other by increasing `X` sequentally (at least once)
+                 * 
+                 * \throw bad_operation
                 */
                 [[nodiscard]]
                 auto operator > (iterator const& other) const -> bool
@@ -402,6 +481,8 @@ namespace utf
                  * 
                  * \details The iterator `X` is greater than another, if it is not possible to
                  * make them equal each other by increasing `X` sequentally (or they are equal already)
+                 * 
+                 * \throw bad_operation
                 */
                 [[nodiscard]]
                 auto operator >= (iterator const& other) const -> bool
@@ -411,10 +492,14 @@ namespace utf
 
                 /**
                  * \brief Predicate operator. Returns `true` if the iterator points to the end of parent view
+                 * 
+                 * \throw bad_operation
                 */
                 [[nodiscard]]
                 auto operator ! () const -> bool
                 {
+                    _confirm_op("Untied iterator range-checking");
+
                     return *this == _parent->end();
                 }
 
@@ -434,13 +519,21 @@ namespace utf
                  * \brief Offsets the iterator to the previous character in forward direction
                  * 
                  * \return Reference to the modified iterator
+                 * 
+                 * \throw bad_operation
                 */
                 auto _forward_decrease () -> iterator&
                 {
+                    _confirm_op("Untied iterator modifying");
+
+                    // Reverse ending iterator stays at the same place...
                     if (_base() == _parent->bytes() || _base() == _parent->_forward_rend()._base())
                     {
                         _ptrbase = _parent->bytes() - 1;
                     }
+
+                    // ...otherwise, the base pointer have to be decreased
+                    // while pointing to a `10xxxxxx`-like byte
                     else while (_ptrbase && (*(--_ptrbase) & 0xC0) == 0x80);
 
                     return *this;
@@ -451,9 +544,15 @@ namespace utf
                  * \brief Offsets the iterator to the next character in forward direction
                  * 
                  * \return Reference to the modified iterator
+                 * 
+                 * \throw bad_operation
                 */
                 auto _forward_increase () -> iterator&
                 {
+                    _confirm_op("Untied iterator modifying");
+
+                    // Shift the base pointer to the character's bytes count;
+                    // forward ending iterator stays at the same place
                     if (_base() != _parent->bytes_end())
                     {
                         _ptrbase += string::_charsize(_base());
@@ -468,6 +567,17 @@ namespace utf
                 auto _base () const -> pointer
                 {
                     return _ptrbase;
+                }
+
+                /**
+                 * \internal
+                 * \brief Checks if an operation is allowed with iterator; throws otherwise
+                 * 
+                 * \throw bad_operation
+                */
+                auto _confirm_op (const char* exception_msg) const -> void
+                {
+                    if (!is_bound()) throw bad_operation{ exception_msg };
                 }
             };
 
@@ -924,11 +1034,12 @@ namespace utf
              * \return Reference to the modified view
              * 
              * \throw invalid_argument
+             * \throw length_error
             */
             auto truncate (size_type off, size_type N) -> view&
             {
                 if (off < 0) throw invalid_argument{ "Negative subspan offset" };
-                if (N < 0) throw invalid_argument{ "Negative subspan length" };
+                if (N < 0) throw length_error{ "Negative subspan length" };
 
                 if (is_forward())
                 {
@@ -1296,6 +1407,7 @@ namespace utf
          * \note This is an `O(n)` operation
          * 
          * \throw invalid_argument
+         * \throw length_error
         */
         [[nodiscard]]
         auto chars (size_type shift, size_type N = npos) const -> view
@@ -1312,7 +1424,7 @@ namespace utf
          *
          * \note This is an `O(n)` operation
          * 
-         * \throw invalid_argument
+         * \throw length_error
         */
         [[nodiscard]]
         auto first (size_type N) const -> view
@@ -1329,7 +1441,7 @@ namespace utf
          *
          * \note This is an `O(n)` operation
          * 
-         * \throw invalid_argument
+         * \throw length_error
         */
         [[nodiscard]]
         auto last (size_type N) const -> view
@@ -1657,10 +1769,12 @@ namespace utf
         /**
          * \brief Removes the last character from the string and returns its code point
          * 
-         * \throw out_of_range
+         * \throw underflow_error
         */
         auto pop () -> char_type
         {
+            if (is_empty()) throw underflow_error{ "Pop from empty string" };
+
             auto it = chars().backward().begin();
             _end = it._base();
 
@@ -1897,6 +2011,7 @@ namespace utf
          * i.e., it stays the same internal size. To free up unused memory, call `shrink_to_fit()` after
          * 
          * \throw invalid_argument
+         * \throw length_error
         */
         auto erase (size_type pos, size_type N = 1) -> string&
         {
@@ -2043,7 +2158,7 @@ namespace utf
         {
             for (auto it = chars().begin(); it._base() != bytes_end();)
             {
-                if (pred(*it)) erase({ it, it + 1 });
+                if (pred(*it)) erase(view{ it });
                 else
                     ++it;
             }
@@ -2153,6 +2268,7 @@ namespace utf
          * \return Reference to the modified string object
          * 
          * \throw invalid_argument
+         * \throw length_error
         */
         auto replace (size_type pos, size_type N, view const& other) -> string&
         {
@@ -2678,7 +2794,7 @@ namespace utf
      * 
      * \return String equivalent of `number`
      * 
-     * \details The value of `base` must be in range [2; 36]. Otherwise, an exception will be thrown
+     * \note The value of `base` must be in range [2; 36]. Otherwise, an exception will be thrown
      * 
      * \throw invalid_argument
     */
