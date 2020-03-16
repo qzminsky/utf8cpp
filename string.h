@@ -1,7 +1,7 @@
 #pragma once
 
-// Copyright © 2020 Alex Qzminsky
-// License: MIT
+// Copyright © 2020 Alex Qzminsky.
+// License: MIT. All rights reserved.
 
 #ifndef UTF8CPP_H
 #define UTF8CPP_H
@@ -12,12 +12,12 @@ static_assert(__cplusplus >= 201700L, "C++17 or higher is required");
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include <exception>
 #include <initializer_list>
 #include <iostream>
 #include <iterator>
 #include <limits>
 #include <numeric>
+#include <stdexcept>
 #include <string>
 #include <type_traits>
 #include <vector>
@@ -25,19 +25,25 @@ static_assert(__cplusplus >= 201700L, "C++17 or higher is required");
 namespace utf
 {
     // SECTION Exceptions classes
+
+    /// Out-of-bounds iterators and invalid views
     using out_of_range     = std::out_of_range;
+
+    /// Invalid numeric offsets
     using invalid_argument = std::invalid_argument;
+
+    /// Unrepresentable characters codes
     using range_error      = std::range_error;
+
+    /// Pop on an empty string
     using underflow_error  = std::underflow_error;
+
+    /// Invalid numeric lengths of views
     using length_error     = std::length_error;
 
-    struct bad_operation : std::runtime_error
+    /// Unresolved modifying of an iterator
+    struct bad_operation   : std::runtime_error
     {
-        /**
-         * \brief C-stringified constructor
-         * 
-         * \param msg Exception message
-        */
         explicit bad_operation (const char* msg)
             : std::runtime_error{ msg }
         {}
