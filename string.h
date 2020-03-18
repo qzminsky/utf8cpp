@@ -9,6 +9,7 @@
 static_assert(__cplusplus >= 201700L, "C++17 or higher is required");
 
 #include <algorithm>
+#include <cctype>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -58,8 +59,8 @@ namespace utf
      *
      * \details Stores an Unicode string as a dynamically-allocated memory buffer
      * 
-     * \version 0.7.0
-     * \date 2020/03/16
+     * \version 0.7.1
+     * \date 2020/03/19
     */
     class string
     {
@@ -2847,6 +2848,31 @@ namespace utf
         if (number < 0) mstr.insert(0, "-");
 
         return mstr;
+    }
+
+    /**
+     * \brief Predicate. Returns `true` if a character is space-qualified
+     * 
+     * \param value Checking character's code point
+     * 
+     * \note Unlike `std::isspace`, this function also matches the Unicode spaces
+    */
+    [[nodiscard]]
+    auto isspace (string::char_type value) -> bool
+    {
+        auto _is_any = [value] (auto... lst) -> bool
+        {
+            return ((value == lst) || ...);
+        };
+
+        return std::isspace(value) || _is_any
+        (
+            0xA0, 0x1680, 0x180E,
+            0x2000, 0x2001, 0x2002, 0x2003,
+            0x2004, 0x2005, 0x2006, 0x2007,
+            0x2008, 0x2009, 0x200A, 0x200B,
+            0x202F, 0x205F, 0x3000, 0xFEFF
+        );
     }
 }
 
