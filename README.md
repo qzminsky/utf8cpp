@@ -5,7 +5,7 @@
 [![help](https://img.shields.io/badge/help-wiki-red)](../../wiki)
 ![cpp-version](https://img.shields.io/badge/C%2B%2B-≥17-blue)
 
-Tiny, UTF-8-based string library with some modern improvements
+Small UTF-8-based string library with some modern improvements
 
 ## Overview
 The class `utf::string` describes a dynamically, array-based, contiguous storage of UTF-8-encoded characters set.
