@@ -59,8 +59,8 @@ namespace utf
      *
      * \details Stores an Unicode string as a dynamically-allocated memory buffer
      * 
-     * \version 0.8.0
-     * \date 2020/03/19
+     * \version 0.8.1
+     * \date 2020/03/20
     */
     class string
     {
@@ -2247,9 +2247,9 @@ namespace utf
          * \return Reference to the modified string
         */
         template <typename Functor>
-        auto trim (Functor&& pred) -> string&
+        auto trim_if (Functor&& pred) -> string&
         {
-            while (pred(back())) pop();
+            while (pred(chars().back())) pop();
 
             for (auto start = bytes(); start < bytes_end(); start += _charsize(start))
             {
@@ -2276,7 +2276,7 @@ namespace utf
         {
             _validate_char(value, "Trimming an invalid Unicode character");
 
-            return trim(
+            return trim_if(
                 [&value] (char_type ch) { return value == ch; }
             );
         }
@@ -2288,7 +2288,7 @@ namespace utf
         */
         auto trim () -> string&
         {
-            return trim(utf::isspace);
+            return trim_if(utf::isspace);
         }
 
         /**
