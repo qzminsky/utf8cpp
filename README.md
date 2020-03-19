@@ -1,6 +1,6 @@
 ![utf8cpp](https://user-images.githubusercontent.com/54913619/76170749-e8ae9b80-6195-11ea-8780-efbf16e64d9a.png)
 
-![version](https://img.shields.io/badge/version-0.7-brightgreen)
+![version](https://img.shields.io/badge/version-0.8-brightgreen)
 [![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE.md)
 [![help](https://img.shields.io/badge/help-wiki-red)](../../wiki)
 ![cpp-version](https://img.shields.io/badge/C%2B%2B-≥17-blue)
@@ -51,9 +51,9 @@ for (auto view = Line.chars(); auto ch : view)
 utf::string Line{ "Mr Dursley was the director of a firm called Grunnings" };
 
 // Remove all spaces
-Line.clone().remove_if(isspace);
-    /* or */
 Line.clone().remove(' ');
+    /* or */
+Line.clone().remove_if(utf::isspace);
     /* or */
 Line.clone().remove_if([](utf::string::char_type ch) { return isspace(ch); });
 
