@@ -1219,6 +1219,7 @@ namespace utf
         friend auto get (std::istream&) -> char_type;
         friend auto put (std::ostream&, char_type) -> void;
         friend auto operator >> (std::istream&, string&) -> std::istream&;
+        friend auto isspace (string::char_type) -> bool;
 
         /**
          * \brief Default constructor
@@ -2392,7 +2393,7 @@ namespace utf
         */
         auto trim () -> string&
         {
-            return trim(std::isspace);
+            return trim(utf::isspace);
         }
 
         /**
@@ -2414,7 +2415,7 @@ namespace utf
                 current != bytes_end();
                 current += _charsize(current)
             ) {
-                if (std::isspace(_decode(current)))
+                if (utf::isspace(_decode(current)))
                 {
                     if (!series)
                     {
@@ -2751,7 +2752,7 @@ namespace utf
         auto tmp_size = to.size();
         to._end = to.bytes();
 
-        for (auto ch = get(is); is && !isspace(ch); ch = get(is))
+        for (auto ch = get(is); is && !utf::isspace(ch); ch = get(is))
         {
             // Reuse available memory to avoid reallocation
             if (to.size() + string::_codebytes(ch) <= tmp_size)
