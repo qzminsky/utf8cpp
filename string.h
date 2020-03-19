@@ -59,7 +59,7 @@ namespace utf
      *
      * \details Stores an Unicode string as a dynamically-allocated memory buffer
      * 
-     * \version 0.7.1
+     * \version 0.8.0
      * \date 2020/03/19
     */
     class string
@@ -158,10 +158,13 @@ namespace utf
 
                 /**
                  * \brief Untying the iterator from its parent
+                 * 
+                 * \return Reference to the modified iterator
                 */
-                auto untie () -> void
+                auto untie () -> iterator&
                 {
                     _parent = nullptr;
+                    return *this;
                 }
 
                 /**
@@ -169,9 +172,11 @@ namespace utf
                  * 
                  * \param to New parent view
                  * 
+                 * \return Reference to the modified iterator
+                 * 
                  * \throw out_of_range
                 */
-                auto tie (view& to) -> void
+                auto tie (view& to) -> iterator&
                 {
                     if (to.bytes() - 1 > _base() ||
                         to.bytes_end() < _base()
@@ -180,6 +185,7 @@ namespace utf
                     }
 
                     _parent = &to;
+                    return *this;
                 }
 
                 /**
@@ -393,7 +399,7 @@ namespace utf
                 [[nodiscard]]
                 auto as_index () const -> size_type
                 {
-                    return *this - view{ *_parent }.forward().begin();
+                    return *this - _parent->forward().begin();
                 }
 
                 /**
@@ -622,7 +628,7 @@ namespace utf
             */
             view (iterator it)
                 : _forward_begin{ it._base() }
-                , _forward_end{ (it._forward_increase())._base() }
+                , _forward_end{ it._base() + _charsize(it._base()) }
                 , _direction{ direction::forward }
             {}
 
@@ -675,29 +681,34 @@ namespace utf
             */
             auto reverse () -> view&
             {
-                return is_forward() ? backward() : forward();
-            }
-
-            /**
-             * \brief Sets the iterating direction as forward
-             * 
-             * \return Reference to the modified view
-            */
-            auto forward () -> view&
-            {
-                _direction = direction::forward;
+                _direction = is_forward() ? direction::backward : direction::forward;
                 return *this;
             }
 
             /**
-             * \brief Sets the iterating direction as backward
+             * \brief Copies the view and sets the copy's iterating direction as forward
              * 
-             * \return Reference to the modified view
+             * \return Modified copy of the original view
             */
-            auto backward () -> view&
+            auto forward () const -> view
             {
-                _direction = direction::backward;
-                return *this;
+                auto tmp = *this;
+
+                tmp._direction = direction::forward;
+                return tmp;
+            }
+
+            /**
+             * \brief Copies the view and sets the copy's iterating direction as backward
+             * 
+             * \return Modified copy of the original view
+            */
+            auto backward () const -> view
+            {
+                auto tmp = *this;
+
+                tmp._direction = direction::backward;
+                return tmp;
             }
 
             /**
@@ -859,20 +870,22 @@ namespace utf
              * 
              * \param vi Substring to search (by its view)
              * 
-             * \return Iterator to the first character of the substring or `end()` if it does not found
+             * \return View of first occurrence of the substring or `[end(); end())` if it does not found
             */
             [[nodiscard]]
-            auto find (view const& vi) const -> iterator
+            auto find (view const& vi) const -> view
             {
                 for (auto it = begin(); !! it; ++it)
                 {
                     if (
-                        it._base() + vi.size() <= bytes_end() &&
-                        std::equal(vi.bytes(), vi.bytes_end(), it._base())
+                        auto ptr = it._base();
+
+                        ptr + vi.size() <= bytes_end() &&
+                        std::equal(vi.bytes(), vi.bytes_end(), ptr)
                     )
-                        return it;
+                        return { ptr, ptr + vi.size() };
                 }
-                return end();
+                return { end(), end() };
             }
 
             /**
@@ -932,6 +945,49 @@ namespace utf
             auto ends_with (view const& vi) const -> bool
             {
                 return (size() >= vi.size()) && std::equal(vi.bytes(), vi.bytes_end(), bytes_end() - vi.size());
+            }
+
+            /**
+             * \brief Getting the code point of the character by index in the view
+             *
+             * \param index Index of the character in range `[0; length())`
+             *
+             * \note This is an `O(n)` operation as it requires iteration over every UTF-8 character from
+             * the beginning of the view to the `index`-th position
+             * 
+             * \throw invalid_argument
+             * \throw out_of_range
+            */
+            [[nodiscard]]
+            auto get (size_type index) const -> char_type
+            {
+                if (index < 0) throw invalid_argument{ "Negative character index" };
+
+                return begin()[index];
+            }
+
+            /**
+             * \brief Getting the code point of the first character of the view
+             * 
+             * \throw out_of_range
+            */
+            [[nodiscard]]
+            auto front () const -> char_type
+            {
+                return get(0);
+            }
+
+            /**
+             * \brief Getting the code point of the last character of the view
+             * 
+             * \note This is an `O(1)` operation
+             * 
+             * \throw out_of_range
+            */
+            [[nodiscard]]
+            auto back () const -> char_type
+            {
+                return *backward().begin();
             }
 
             /**
@@ -1454,7 +1510,7 @@ namespace utf
         [[nodiscard]]
         auto last (size_type N) const -> view
         {
-            return chars().backward().truncate(0, N).forward();
+            return chars().reverse().truncate(0, N).reverse();
         }
 
         /**
@@ -1497,49 +1553,6 @@ namespace utf
                 tmp.push_back(_decode(ptr));
             }
             return tmp;
-        }
-
-        /**
-         * \brief Getting the code point of the character by index in the string
-         *
-         * \param index Index of the character in range `[0; length())`
-         *
-         * \note This is an `O(n)` operation as it requires iteration over every UTF-8 character from
-         * the beginning of the string to `index`-th position
-         * 
-         * \throw invalid_argument
-         * \throw out_of_range
-        */
-        [[nodiscard]]
-        auto get (size_type index) const -> char_type
-        {
-            if (index < 0) throw invalid_argument{ "Negative character index" };
-
-            return chars().begin()[index];
-        }
-
-        /**
-         * \brief Getting the code point of the first character of the string
-         * 
-         * \throw out_of_range
-        */
-        [[nodiscard]]
-        auto front () const -> char_type
-        {
-            return get(0);
-        }
-
-        /**
-         * \brief Getting the code point of the last character of the string
-         * 
-         * \note This is an `O(1)` operation
-         * 
-         * \throw out_of_range
-        */
-        [[nodiscard]]
-        auto back () const -> char_type
-        {
-            return *chars().backward().begin();
         }
 
         /**
@@ -1783,7 +1796,7 @@ namespace utf
         {
             if (is_empty()) throw underflow_error{ "Pop from empty string" };
 
-            auto it = chars().backward().begin();
+            auto it = chars().reverse().begin();
             _end = it._base();
 
             return *it;
@@ -1893,7 +1906,7 @@ namespace utf
         {
             for (;;)
             {
-                if (auto range = find(vi); !! range) replace(range, other);
+                if (auto range = chars().find(vi); !! range) replace(range, other);
                 else
                     break;
             }
@@ -2034,125 +2047,7 @@ namespace utf
              *  bytes()       bytes_end()
             */
         }
-
-
-        /**
-         * \brief Search for the given substring inside entire string
-         * 
-         * \param vi Substring to search (by its view)
-         * 
-         * \return View of first occurrence of the substring or `[end(); end())` if it does not found
-        */
-        [[nodiscard]]
-        auto find (view const& vi) const -> view
-        {
-            auto it_1 = chars().find(vi);
-            auto it_2{ it_1 };
-
-            if (!! it_1) it_2._ptrbase = it_1._base() + vi.size();
-
-            return { it_1, it_2 };
-        }
-
-        /**
-         * \brief Predicate. Returns `true` if the string starts with the view's data
-         * 
-         * \param vi View to match
-        */
-        [[nodiscard]]
-        auto starts_with (view const& vi) const -> bool
-        {
-            return chars().starts_with(vi);
-        }
-
-        /**
-         * \brief Predicate. Returns `true` if the string ends with the view's data
-         * 
-         * \param vi View to match
-        */
-        [[nodiscard]]
-        auto ends_with (view const& vi) const -> bool
-        {
-            return chars().ends_with(vi);
-        }
-
-        /**
-         * \brief Counts the number of substring occurences
-         * 
-         * \param vi Substring to count (by its view)
-         * 
-         * \return Number of occurences
-        */
-        [[nodiscard]]
-        auto count (view const& vi) const -> size_type
-        {
-            return chars().count(vi);
-        }
-
-        /**
-         * \brief Counts the number of characters satisfying specified criteria
-         * 
-         * \param pred Predicate to check
-         * 
-         * \return Number of occurences
-        */
-        template <typename Functor>
-        [[nodiscard]]
-        auto count_if (Functor&& pred) const -> size_type
-        {
-            return chars().count_if(pred);
-        }
-
-        /**
-         * \brief Counts the number of occurences of the given characters
-         * 
-         * \param value Character to count
-         * 
-         * \return Number of occurences
-         * 
-         * \throw range_error
-        */
-        [[nodiscard]]
-        auto count (char_type value) const -> size_type
-        {
-            return chars().count(value);
-        }
-
-        /**
-         * \brief Predicate. Returns `trie` if the string contains specified substring (by its view)
-         * 
-         * \param vi View to check the substring's containing
-        */
-        [[nodiscard]]
-        auto contains (view const& vi) const -> bool
-        {
-            return chars().contains(vi);
-        }
-
-        /**
-         * \brief Predicate. Returns `trie` if the string contains at least single specified character
-         * 
-         * \param value Character to check its containing (given by its code point)
-         * 
-         * \throw range_error
-        */
-        [[nodiscard]]
-        auto contains (char_type value) const -> bool
-        {
-            return chars().contains(value);
-        }
-
-        /**
-         * \brief Predicate. Returns `trie` if the string contains characters satisfying specified criteria
-         * 
-         * \param pred Predicate to check
-        */
-        template <typename Functor>
-        [[nodiscard]]
-        auto contains_if (Functor&& pred) const -> bool
-        {
-            return chars().contains_if(pred);
-        }
+        
 
         /**
          * \brief Removes all characters satisfying specified criteria
@@ -2887,8 +2782,8 @@ namespace std
     template<>
     struct iterator_traits <utf::string_view::iterator>
     {
-        using difference_type = utf::string::difference_type;
-        using value_type = utf::string::char_type;
+        using difference_type   = utf::string::difference_type;
+        using value_type        = utf::string::char_type;
         using iterator_category = std::bidirectional_iterator_tag;
     };
 
