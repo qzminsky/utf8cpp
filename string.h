@@ -64,8 +64,8 @@ namespace utf
      *
      * \details Stores an Unicode string as a dynamically-allocated memory buffer
      * 
-     * \version 0.8.2
-     * \date 2020/03/20
+     * \version 0.8.3
+     * \date 2020/03/21
     */
     class string
     {
@@ -76,6 +76,7 @@ namespace utf
         using difference_type = ptrdiff_t;
         using pointer         = uint8_t*;
         using char_type       = uint32_t;
+        using value_type      = char_type;
 
         /// The special value. The exact meaning depends on context
         static constexpr auto npos = std::numeric_limits<size_type>::max();
@@ -113,6 +114,7 @@ namespace utf
             using difference_type = string::difference_type;
             using pointer         = string::pointer;
             using char_type       = string::char_type;
+            using value_type      = string::value_type;
 
             /**
              * \enum direction
@@ -153,6 +155,14 @@ namespace utf
             */
             class iterator
             {
+            public:
+            
+                using difference_type   = view::difference_type;
+                using value_type        = view::value_type;
+                using iterator_category = std::bidirectional_iterator_tag;
+
+            private:
+
                 friend class view;
                 friend class string;
 
@@ -172,7 +182,7 @@ namespace utf
                  * 
                  * \return Reference to the modified iterator
                 */
-                auto untie () -> iterator&
+                auto free () -> iterator&
                 {
                     _parent = nullptr;
                     return *this;
@@ -187,7 +197,7 @@ namespace utf
                  * 
                  * \throw out_of_range
                 */
-                auto tie (view& to) -> iterator&
+                auto bind (view& to) -> iterator&
                 {
                     if (to.bytes() - 1 > _base() ||
                         to.bytes_end() < _base()
@@ -373,7 +383,7 @@ namespace utf
                  * \throw out_of_range
                 */
                 [[nodiscard]]
-                auto operator * () const -> char_type
+                auto operator * () const -> value_type
                 {
                     if (is_bound() && !*this)
                     {
@@ -395,7 +405,7 @@ namespace utf
                  * \throw bad_operation
                 */
                 [[nodiscard]]
-                auto operator [] (difference_type index) const -> char_type
+                auto operator [] (difference_type index) const -> value_type
                 {
                     return *(*this + index);
                 }
@@ -408,7 +418,7 @@ namespace utf
                  * \throw bad_operation
                 */
                 [[nodiscard]]
-                auto as_index () const -> size_type
+                auto as_index () const -> difference_type
                 {
                     return *this - _parent->forward().begin();
                 }
@@ -454,8 +464,8 @@ namespace utf
                 [[nodiscard]]
                 auto operator < (iterator const& other) const -> bool
                 {
-                    _confirm_op("Untied iterators are unordered");
-                    other._confirm_op("Untied iterators are unordered");
+                    _confirm_op("Unbound iterators are unordered");
+                    other._confirm_op("Unbound iterators are unordered");
 
                     return _parent->is_forward() ? (_base() < other._base()) : (_base() > other._base());
                 }
@@ -522,7 +532,7 @@ namespace utf
                 [[nodiscard]]
                 auto operator ! () const -> bool
                 {
-                    _confirm_op("Untied iterator range-checking");
+                    _confirm_op("Unbound iterator range-checking");
 
                     return *this == _parent->end();
                 }
@@ -548,7 +558,7 @@ namespace utf
                 */
                 auto _forward_decrease () -> iterator&
                 {
-                    _confirm_op("Untied iterator modifying");
+                    _confirm_op("Unbound iterator modifying");
 
                     // Reverse ending iterator stays at the same place...
                     if (_base() == _parent->bytes() || _base() == _parent->_forward_rend()._base())
@@ -573,7 +583,7 @@ namespace utf
                 */
                 auto _forward_increase () -> iterator&
                 {
-                    _confirm_op("Untied iterator modifying");
+                    _confirm_op("Unbound iterator modifying");
 
                     // Shift the base pointer to the character's bytes count;
                     // forward ending iterator stays at the same place
@@ -1223,7 +1233,7 @@ namespace utf
                     if (is_ascii(*ch)) {
                         continue;
                     }
-                    else if (auto sz = _charsize(ch); sz > 4) {
+                    else if (auto sz = string::_charsize(ch); sz > 4) {
                         return false;
                     }
                     else while (--sz) {
@@ -2810,11 +2820,15 @@ namespace std
      * \brief Iterator traits instantiation for the `string_view::iterator` class
     */
     template<>
-    struct iterator_traits <utf::string_view::iterator>
+    class iterator_traits <utf::string_view::iterator>
     {
-        using difference_type   = utf::string::difference_type;
-        using value_type        = utf::string::char_type;
-        using iterator_category = std::bidirectional_iterator_tag;
+        using Iter = utf::string_view::iterator;
+
+    public:
+
+        using difference_type   = Iter::difference_type;
+        using value_type        = Iter::value_type;
+        using iterator_category = Iter::iterator_category;
     };
 
     /**
