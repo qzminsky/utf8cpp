@@ -65,7 +65,7 @@ namespace utf
      * \details Stores an Unicode string as a dynamically-allocated memory buffer
      * 
      * \version 0.8.3
-     * \date 2020/03/21
+     * \date 2020/03/22
     */
     class string
     {
@@ -157,6 +157,7 @@ namespace utf
             {
             public:
             
+                // ANCHOR Member types
                 using difference_type   = view::difference_type;
                 using value_type        = view::value_type;
                 using iterator_category = std::bidirectional_iterator_tag;
@@ -212,9 +213,21 @@ namespace utf
                 /**
                  * \brief Predicate. Checks if the iterator have the parent view
                 */
+                [[nodiscard]]
                 auto is_bound() const -> bool
                 {
                     return _parent;
+                }
+
+                /**
+                 * \brief Predicate. Checks if the iterator is bound with specified view
+                 * 
+                 * \param to Parent view candidate
+                */
+                [[nodiscard]]
+                auto is_bound(view& to) const -> bool
+                {
+                    return _parent == &to;
                 }
 
                 /**
@@ -1954,8 +1967,6 @@ namespace utf
         auto replace_all_if (Functor&& pred, char_type value) -> string&
         {
             _validate_char(value, "Replacing by an invalid Unicode character");
-
-            // FIXME Low performance!
 
             auto matches = chars().matches_if(pred);
             for (auto& off : matches)
