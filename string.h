@@ -23,6 +23,15 @@ static_assert(__cplusplus >= 201700L, "C++17 or higher is required");
 #include <type_traits>
 #include <vector>
 
+/**
+ * \namespace utf
+ * 
+ * \brief utf8cpp library source
+ * \author Qzminsky
+ * 
+ * \version 0.8.4
+ * \date 2020/03/22
+*/
 namespace utf
 {
     // SECTION Exceptions classes
@@ -60,12 +69,8 @@ namespace utf
      * \class string
      * 
      * \brief An UTF-8-based string class
-     * \author Qzminsky
      *
      * \details Stores an Unicode string as a dynamically-allocated memory buffer
-     * 
-     * \version 0.8.3
-     * \date 2020/03/22
     */
     class string
     {
@@ -844,20 +849,30 @@ namespace utf
             }
 
             /**
-             * \brief Returns a vector of the iterators pointing to the every occurence of the given substring
+             * \brief Returns a vector of the iterators pointing to the every occurence of the given substrings
              * 
-             * \param vi Substring to search (by its view)
+             * \param vi Substring to search
+             * \param pack Other substrings to search
             */
+            template <typename... View>
             [[nodiscard]]
-            auto matches (view const& vi) const -> std::vector<iterator>
+            auto matches (view const& vi, View const&... pack) const -> std::vector<iterator>
             {
                 std::vector<iterator> res;
 
                 for (auto it = begin(); !! it; ++it)
                 {
+                    // Single view comparer
+                    auto _equal = [this] (pointer pcmp, view const& vcmp)
+                    {
+                        return pcmp + vcmp.size() <= bytes_end() &&
+                               std::equal(vcmp.bytes(), vcmp.bytes_end(), pcmp);
+                    };
+
+                    // Folding comparison with all of the views in the pack
                     if (
-                        it._base() + vi.size() <= bytes_end() &&
-                        std::equal(vi.bytes(), vi.bytes_end(), it._base())
+                        auto ptr = it._base();
+                        _equal(ptr, vi) || (_equal(ptr, std::forward<view>(pack)) || ...)
                     )
                         res.push_back(it);
                 }
@@ -884,39 +899,59 @@ namespace utf
             }
 
             /**
-             * \brief Returns a vector of the iterators pointing to the every occurence of a character
+             * \brief Returns a vector of the iterators pointing to the every occurence of the characters
              * 
-             * \param value Character to search
+             * \param ch Character to search
+             * \param pack Other characters to search
              * 
              * \throw unicode_error
             */
+            template <typename... Char>
             [[nodiscard]]
-            auto matches (char_type value) const -> std::vector<iterator>
+            auto matches (char_type ch, Char... pack) const -> std::vector<iterator>
             {
-                _validate_char(value, "Matching with an invalid Unicode character");
+                std::vector<iterator> res;
 
-                return matches_if(
-                    [&value] (char_type ch) { return value == ch; }
-                );
+                // Single character comparer
+                auto _equal = [] (char_type a, char_type b)
+                {
+                    _validate_char(b, "Matching with an invalid Unicode character");
+                    return a == b;
+                };
+
+                // Folding comparison with all of the characters in the pack
+                for (auto it = begin(); !! it; ++it)
+                {
+                    if (_equal(*it, ch) || (_equal(*it, (char_type)pack) || ...)) res.push_back(it);
+                }
+                return res;
             }
 
             /**
              * \brief Search for the given substring inside the view
              * 
-             * \param vi Substring to search (by its view)
+             * \param vi First substring to search
+             * \param pack Other substrings to search
              * 
-             * \return View of first occurrence of the substring or `[end(); end())` if it does not found
+             * \return View of first occurrence of any substring or `[end(); end())` if it does not found
             */
+            template <typename... View>
             [[nodiscard]]
-            auto find (view const& vi) const -> view
+            auto find (view const& vi, View const&... pack) const -> view
             {
                 for (auto it = begin(); !! it; ++it)
                 {
+                    // Single view comparer
+                    auto _equal = [this] (pointer pcmp, view const& vcmp)
+                    {
+                        return pcmp + vcmp.size() <= bytes_end() &&
+                               std::equal(vcmp.bytes(), vcmp.bytes_end(), pcmp);
+                    };
+
+                    // Folding comparison with all of the views in the pack
                     if (
                         auto ptr = it._base();
-
-                        ptr + vi.size() <= bytes_end() &&
-                        std::equal(vi.bytes(), vi.bytes_end(), ptr)
+                        _equal(ptr, vi) || (_equal(ptr, std::forward<view>(pack)) || ...)
                     )
                         return { ptr, ptr + vi.size() };
                 }
@@ -942,22 +977,32 @@ namespace utf
             }
 
             /**
-             * \brief Search for the first character in the view by its codepoint
+             * \brief Search for the character in the view by its codepoint
              * 
-             * \param value Character to search
+             * \param ch First character to search
+             * \param pack Other characters to count
              * 
-             * \return Iterator to the first occurence of the given character
+             * \return Iterator to the first occurence of any character from the pack
              * 
              * \throw unicode_error
             */
+            template <typename... Char>
             [[nodiscard]]
-            auto find (char_type value) const -> iterator
+            auto find (char_type ch, Char... pack) const -> iterator
             {
-                _validate_char(value, "Search for an invalid Unicode character");
+                // Single character comparer
+                auto _equal = [] (char_type a, char_type b)
+                {
+                    _validate_char(b, "Search for an invalid Unicode character");
+                    return a == b;
+                };
 
-                return find_if(
-                    [&value] (char_type ch) { return value == ch; }
-                );
+                // Folding comparison with all of the characters in the pack
+                for (auto it = begin(); !! it; ++it)
+                {
+                    if (_equal(*it, ch) || (_equal(*it, (char_type)pack) || ...)) return it;
+                }
+                return end();
             }
 
             /**
@@ -1026,14 +1071,17 @@ namespace utf
             }
 
             /**
-             * \brief Predicate. Returns `trie` if the view contains specified substring (by its view)
+             * \brief Predicate. Returns `trie` if the view contains at least single specified
+             * substring from the presented list
              * 
-             * \param vi View to check the substring's containing
+             * \param value First substring to search
+             * \param pack Other substrings to search
             */
+            template <typename... View>
             [[nodiscard]]
-            auto contains (view const& vi) const -> bool
+            auto contains (view const& vi, View const&... pack) const -> bool
             {
-                return !! find(vi);
+                return !! find(vi, pack...);
             }
 
             /**
@@ -1049,37 +1097,46 @@ namespace utf
             }
 
             /**
-             * \brief Predicate. Returns `trie` if the view contains at least single specified character
+             * \brief Predicate. Returns `trie` if the view contains at least single specified
+             * character from the presented list
              * 
-             * \param value Character to check its containing (given by its codepoint)
+             * \param ch First character to search
+             * \param pack Other characters to search
              * 
              * \throw unicode_error
             */
+            template <typename... Char>
             [[nodiscard]]
-            auto contains (char_type value) const -> bool
+            auto contains (char_type ch, Char... pack) const -> bool
             {
-                return !! find(value);
+                return !! find(ch, pack...);
             }
 
             /**
-             * \brief Counts the number of substring occurences
+             * \brief Counts the number of occurences of all substrings in the pack
              * 
-             * \param vi Substring to count (by its view)
+             * \param vi First substring to count
+             * \param pack Other substrings to count
              * 
-             * \return Number of occurences
+             * \return Summary number of occurences
             */
+            template <typename... View>
             [[nodiscard]]
-            auto count (view const& vi) const -> size_type
+            auto count (view const& vi, View const&... pack) const -> size_type
             {
                 size_type cnt = 0;
 
                 for (auto it = begin(); !! it; ++it)
                 {
-                    if (
-                        it._base() + vi.size() <= bytes_end() &&
-                        std::equal(vi.bytes(), vi.bytes_end(), it._base())
-                    )
-                        ++cnt;
+                    // Single view comparer
+                    auto _equal = [&it, this] (view const& vcmp)
+                    {
+                        return it._base() + vcmp.size() <= bytes_end() &&
+                               std::equal(vcmp.bytes(), vcmp.bytes_end(), it._base());
+                    };
+
+                    // Folding comparison with all of the views in the pack
+                    cnt += _equal(vi) + (_equal(std::forward<view>(pack)) + ...);
                 }
                 return cnt;
             }
@@ -1105,22 +1162,34 @@ namespace utf
             }
 
             /**
-             * \brief Counts the number of occurences of the given characters
+             * \brief Counts the number of occurences of all characters in the pack
              * 
-             * \param value Character to count
+             * \param ch First character to count
+             * \param pack Other characters to count
              * 
-             * \return Number of occurences
+             * \return Summary number of occurences
              * 
              * \throw unicode_error
             */
+            template <typename... Char>
             [[nodiscard]]
-            auto count (char_type value) const -> size_type
+            auto count (char_type ch, Char... pack) const -> size_type
             {
-                _validate_char(value, "Counting of an invalid Unicode character");
+                size_type cnt = 0;
 
-                return count_if(
-                    [&value] (char_type ch) { return value == ch; }
-                );
+                // Single character comparer
+                auto _equal = [] (char_type a, char_type b)
+                {
+                    _validate_char(b, "Counting of an invalid Unicode character");
+                    return a == b;
+                };
+
+                // Folding comparison with all of the characters in the pack
+                for (auto it = begin(); !! it; ++it)
+                {
+                    if (_equal(*it, ch) || (_equal(*it, (char_type)pack) || ...)) ++cnt;
+                }
+                return cnt;
             }
 
             /**
@@ -2108,7 +2177,7 @@ namespace utf
         /**
          * \brief Removes all occurrences of the character in the string
          * 
-         * \param value Character to remove (presented by its codepoint)
+         * \param value Character to remove (by its codepoint)
          * 
          * \return Reference to the modified string
          * 
@@ -2126,7 +2195,7 @@ namespace utf
         /**
          * \brief Removes all occurences of the substring in the current string
          * 
-         * \param vi Substring to remove (by its view)
+         * \param vi Substring to remove
          * 
          * \return Reference to the modified string
         */
