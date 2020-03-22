@@ -23,6 +23,15 @@ static_assert(__cplusplus >= 201700L, "C++17 or higher is required");
 #include <type_traits>
 #include <vector>
 
+/**
+ * \namespace utf
+ * 
+ * \brief utf8cpp library source
+ * \author Qzminsky
+ * 
+ * \version 0.8.4
+ * \date 2020/03/22
+*/
 namespace utf
 {
     // SECTION Exceptions classes
@@ -32,9 +41,6 @@ namespace utf
 
     /// Invalid numeric offsets
     using invalid_argument = std::invalid_argument;
-
-    /// Unrepresentable characters codes
-    using range_error      = std::range_error;
 
     /// Pop on an empty string
     using underflow_error  = std::underflow_error;
@@ -49,18 +55,22 @@ namespace utf
             : std::runtime_error{ msg }
         {}
     };
+
+    /// Unrepresentable characters codes
+    struct unicode_error   : std::range_error
+    {
+        explicit unicode_error (const char* msg)
+            : std::range_error{ msg }
+        {}
+    };
     // !SECTION
 
     /**
      * \class string
      * 
      * \brief An UTF-8-based string class
-     * \author Qzminsky
      *
      * \details Stores an Unicode string as a dynamically-allocated memory buffer
-     * 
-     * \version 0.7.1
-     * \date 2020/03/19
     */
     class string
     {
@@ -71,6 +81,7 @@ namespace utf
         using difference_type = ptrdiff_t;
         using pointer         = uint8_t*;
         using char_type       = uint32_t;
+        using value_type      = char_type;
 
         /// The special value. The exact meaning depends on context
         static constexpr auto npos = std::numeric_limits<size_type>::max();
@@ -102,6 +113,13 @@ namespace utf
         class view
         {
         public:
+
+            // ANCHOR Member types
+            using size_type       = string::size_type;
+            using difference_type = string::difference_type;
+            using pointer         = string::pointer;
+            using char_type       = string::char_type;
+            using value_type      = string::value_type;
 
             /**
              * \enum direction
@@ -142,6 +160,15 @@ namespace utf
             */
             class iterator
             {
+            public:
+            
+                // ANCHOR Member types
+                using difference_type   = view::difference_type;
+                using value_type        = view::value_type;
+                using iterator_category = std::bidirectional_iterator_tag;
+
+            private:
+
                 friend class view;
                 friend class string;
 
@@ -158,10 +185,13 @@ namespace utf
 
                 /**
                  * \brief Untying the iterator from its parent
+                 * 
+                 * \return Reference to the modified iterator
                 */
-                auto untie () -> void
+                auto free () -> iterator&
                 {
                     _parent = nullptr;
+                    return *this;
                 }
 
                 /**
@@ -169,9 +199,11 @@ namespace utf
                  * 
                  * \param to New parent view
                  * 
+                 * \return Reference to the modified iterator
+                 * 
                  * \throw out_of_range
                 */
-                auto tie (view& to) -> void
+                auto bind (view& to) -> iterator&
                 {
                     if (to.bytes() - 1 > _base() ||
                         to.bytes_end() < _base()
@@ -180,14 +212,27 @@ namespace utf
                     }
 
                     _parent = &to;
+                    return *this;
                 }
 
                 /**
                  * \brief Predicate. Checks if the iterator have the parent view
                 */
+                [[nodiscard]]
                 auto is_bound() const -> bool
                 {
                     return _parent;
+                }
+
+                /**
+                 * \brief Predicate. Checks if the iterator is bound with specified view
+                 * 
+                 * \param to Parent view candidate
+                */
+                [[nodiscard]]
+                auto is_bound(view& to) const -> bool
+                {
+                    return _parent == &to;
                 }
 
                 /**
@@ -349,14 +394,14 @@ namespace utf
                 /**
                  * \brief Iterator dereferencing
                  * 
-                 * \return Code point of the pointing character
+                 * \return Codepoint of the pointing character
                  * 
                  * \note This operator returns a value, not a reference
                  * 
                  * \throw out_of_range
                 */
                 [[nodiscard]]
-                auto operator * () const -> char_type
+                auto operator * () const -> value_type
                 {
                     if (is_bound() && !*this)
                     {
@@ -370,7 +415,7 @@ namespace utf
                  * 
                  * \param index Offset from current iterator
                  * 
-                 * \return Code point of the character `*this + index`
+                 * \return Codepoint of the character `*this + index`
                  * 
                  * \note This operator returns a value, not a reference
                  * 
@@ -378,7 +423,7 @@ namespace utf
                  * \throw bad_operation
                 */
                 [[nodiscard]]
-                auto operator [] (difference_type index) const -> char_type
+                auto operator [] (difference_type index) const -> value_type
                 {
                     return *(*this + index);
                 }
@@ -391,9 +436,9 @@ namespace utf
                  * \throw bad_operation
                 */
                 [[nodiscard]]
-                auto as_index () const -> size_type
+                auto as_index () const -> difference_type
                 {
-                    return *this - view{ *_parent }.forward().begin();
+                    return *this - _parent->forward().begin();
                 }
 
                 /**
@@ -429,7 +474,7 @@ namespace utf
                  * 
                  * \return `true` if `*this` is less than `other`; `false` otherwise
                  * 
-                 * \details The iterator `X` is less than another, if it is possible to make them
+                 * \details The iterator `X` is less than `Y`, if it is possible to make them
                  * equal each other by increasing `X` sequentally (at least once)
                  * 
                  * \throw bad_operation
@@ -437,8 +482,8 @@ namespace utf
                 [[nodiscard]]
                 auto operator < (iterator const& other) const -> bool
                 {
-                    _confirm_op("Untied iterators are unordered");
-                    other._confirm_op("Untied iterators are unordered");
+                    _confirm_op("Unbound iterators are unordered");
+                    other._confirm_op("Unbound iterators are unordered");
 
                     return _parent->is_forward() ? (_base() < other._base()) : (_base() > other._base());
                 }
@@ -450,7 +495,7 @@ namespace utf
                  * 
                  * \return `true` if `*this` is less than (or equal to) `other`; `false` otherwise
                  * 
-                 * \details The iterator `X` is less than another, if it is possible to make them
+                 * \details The iterator `X` is less than `Y`, if it is possible to make them
                  * equal each other by increasing `X` sequentally (or they are equal already)
                  * 
                  * \throw bad_operation
@@ -468,8 +513,8 @@ namespace utf
                  * 
                  * \return `true` if `*this` is greater than `other`; `false` otherwise
                  * 
-                 * \details The iterator `X` is greater than another, if it is not possible to
-                 * make them equal each other by increasing `X` sequentally (at least once)
+                 * \details The iterator `X` is greater than `Y`, if it is possible to make them
+                 * equal each other by increasing `Y` sequentally (at least once)
                  * 
                  * \throw bad_operation
                 */
@@ -486,8 +531,8 @@ namespace utf
                  * 
                  * \return `true` if `*this` is greater than (or equal to) `other`; `false` otherwise
                  * 
-                 * \details The iterator `X` is greater than another, if it is not possible to
-                 * make them equal each other by increasing `X` sequentally (or they are equal already)
+                 * \details The iterator `X` is greater than `Y`, if it is possible to make them
+                 * equal each other by increasing `Y` sequentally (or they are equal already)
                  * 
                  * \throw bad_operation
                 */
@@ -505,7 +550,7 @@ namespace utf
                 [[nodiscard]]
                 auto operator ! () const -> bool
                 {
-                    _confirm_op("Untied iterator range-checking");
+                    _confirm_op("Unbound iterator range-checking");
 
                     return *this == _parent->end();
                 }
@@ -531,7 +576,7 @@ namespace utf
                 */
                 auto _forward_decrease () -> iterator&
                 {
-                    _confirm_op("Untied iterator modifying");
+                    _confirm_op("Unbound iterator modifying");
 
                     // Reverse ending iterator stays at the same place...
                     if (_base() == _parent->bytes() || _base() == _parent->_forward_rend()._base())
@@ -556,7 +601,7 @@ namespace utf
                 */
                 auto _forward_increase () -> iterator&
                 {
-                    _confirm_op("Untied iterator modifying");
+                    _confirm_op("Unbound iterator modifying");
 
                     // Shift the base pointer to the character's bytes count;
                     // forward ending iterator stays at the same place
@@ -586,7 +631,8 @@ namespace utf
                 {
                     if (!is_bound()) throw bad_operation{ exception_msg };
                 }
-            };
+
+            };  // end class iterator
 
             /// There is no default constructor for a view
             view () = delete;
@@ -622,7 +668,7 @@ namespace utf
             */
             view (iterator it)
                 : _forward_begin{ it._base() }
-                , _forward_end{ (it._forward_increase())._base() }
+                , _forward_end{ it._base() + _charsize(it._base()) }
                 , _direction{ direction::forward }
             {}
 
@@ -675,29 +721,34 @@ namespace utf
             */
             auto reverse () -> view&
             {
-                return is_forward() ? backward() : forward();
-            }
-
-            /**
-             * \brief Sets the iterating direction as forward
-             * 
-             * \return Reference to the modified view
-            */
-            auto forward () -> view&
-            {
-                _direction = direction::forward;
+                _direction = is_forward() ? direction::backward : direction::forward;
                 return *this;
             }
 
             /**
-             * \brief Sets the iterating direction as backward
+             * \brief Copies the view and sets the copy's iterating direction as forward
              * 
-             * \return Reference to the modified view
+             * \return Modified copy of the original view
             */
-            auto backward () -> view&
+            auto forward () const -> view
             {
-                _direction = direction::backward;
-                return *this;
+                auto tmp = *this;
+
+                tmp._direction = direction::forward;
+                return tmp;
+            }
+
+            /**
+             * \brief Copies the view and sets the copy's iterating direction as backward
+             * 
+             * \return Modified copy of the original view
+            */
+            auto backward () const -> view
+            {
+                auto tmp = *this;
+
+                tmp._direction = direction::backward;
+                return tmp;
             }
 
             /**
@@ -798,20 +849,30 @@ namespace utf
             }
 
             /**
-             * \brief Returns a vector of the iterators pointing to the every occurence of the given substring
+             * \brief Returns a vector of the iterators pointing to the every occurence of the given substrings
              * 
-             * \param vi Substring to search (by its view)
+             * \param vi Substring to search
+             * \param pack Other substrings to search
             */
+            template <typename... View>
             [[nodiscard]]
-            auto matches (view const& vi) const -> std::vector<iterator>
+            auto matches (view const& vi, View const&... pack) const -> std::vector<iterator>
             {
                 std::vector<iterator> res;
 
                 for (auto it = begin(); !! it; ++it)
                 {
+                    // Single view comparer
+                    auto _equal = [this] (pointer pcmp, view const& vcmp)
+                    {
+                        return pcmp + vcmp.size() <= bytes_end() &&
+                               std::equal(vcmp.bytes(), vcmp.bytes_end(), pcmp);
+                    };
+
+                    // Folding comparison with all of the views in the pack
                     if (
-                        it._base() + vi.size() <= bytes_end() &&
-                        std::equal(vi.bytes(), vi.bytes_end(), it._base())
+                        auto ptr = it._base();
+                        _equal(ptr, vi) || (_equal(ptr, std::forward<view>(pack)) || ...)
                     )
                         res.push_back(it);
                 }
@@ -838,41 +899,63 @@ namespace utf
             }
 
             /**
-             * \brief Returns a vector of the iterators pointing to the every occurence of a character
+             * \brief Returns a vector of the iterators pointing to the every occurence of the characters
              * 
-             * \param value Character to search
+             * \param ch Character to search
+             * \param pack Other characters to search
              * 
-             * \throw range_error
+             * \throw unicode_error
             */
+            template <typename... Char>
             [[nodiscard]]
-            auto matches (char_type value) const -> std::vector<iterator>
+            auto matches (char_type ch, Char... pack) const -> std::vector<iterator>
             {
-                _validate_char(value, "Matching with an invalid Unicode character");
+                std::vector<iterator> res;
 
-                return matches_if(
-                    [&value] (char_type ch) { return value == ch; }
-                );
+                // Single character comparer
+                auto _equal = [] (char_type a, char_type b)
+                {
+                    _validate_char(b, "Matching with an invalid Unicode character");
+                    return a == b;
+                };
+
+                // Folding comparison with all of the characters in the pack
+                for (auto it = begin(); !! it; ++it)
+                {
+                    if (_equal(*it, ch) || (_equal(*it, (char_type)pack) || ...)) res.push_back(it);
+                }
+                return res;
             }
 
             /**
              * \brief Search for the given substring inside the view
              * 
-             * \param vi Substring to search (by its view)
+             * \param vi First substring to search
+             * \param pack Other substrings to search
              * 
-             * \return Iterator to the first character of the substring or `end()` if it does not found
+             * \return View of first occurrence of any substring or `[end(); end())` if it does not found
             */
+            template <typename... View>
             [[nodiscard]]
-            auto find (view const& vi) const -> iterator
+            auto find (view const& vi, View const&... pack) const -> view
             {
                 for (auto it = begin(); !! it; ++it)
                 {
+                    // Single view comparer
+                    auto _equal = [this] (pointer pcmp, view const& vcmp)
+                    {
+                        return pcmp + vcmp.size() <= bytes_end() &&
+                               std::equal(vcmp.bytes(), vcmp.bytes_end(), pcmp);
+                    };
+
+                    // Folding comparison with all of the views in the pack
                     if (
-                        it._base() + vi.size() <= bytes_end() &&
-                        std::equal(vi.bytes(), vi.bytes_end(), it._base())
+                        auto ptr = it._base();
+                        _equal(ptr, vi) || (_equal(ptr, std::forward<view>(pack)) || ...)
                     )
-                        return it;
+                        return { ptr, ptr + vi.size() };
                 }
-                return end();
+                return { end(), end() };
             }
 
             /**
@@ -894,22 +977,32 @@ namespace utf
             }
 
             /**
-             * \brief Search for the first character in the view by its code point
+             * \brief Search for the character in the view by its codepoint
              * 
-             * \param value Character to search
+             * \param ch First character to search
+             * \param pack Other characters to count
              * 
-             * \return Iterator to the first occurence of the given character
+             * \return Iterator to the first occurence of any character from the pack
              * 
-             * \throw range_error
+             * \throw unicode_error
             */
+            template <typename... Char>
             [[nodiscard]]
-            auto find (char_type value) const -> iterator
+            auto find (char_type ch, Char... pack) const -> iterator
             {
-                _validate_char(value, "Search for an invalid Unicode character");
+                // Single character comparer
+                auto _equal = [] (char_type a, char_type b)
+                {
+                    _validate_char(b, "Search for an invalid Unicode character");
+                    return a == b;
+                };
 
-                return find_if(
-                    [&value] (char_type ch) { return value == ch; }
-                );
+                // Folding comparison with all of the characters in the pack
+                for (auto it = begin(); !! it; ++it)
+                {
+                    if (_equal(*it, ch) || (_equal(*it, (char_type)pack) || ...)) return it;
+                }
+                return end();
             }
 
             /**
@@ -935,14 +1028,60 @@ namespace utf
             }
 
             /**
-             * \brief Predicate. Returns `trie` if the view contains specified substring (by its view)
+             * \brief Getting the codepoint of the character by index in the view
+             *
+             * \param index Index of the character in range `[0; length())`
+             *
+             * \note This is an `O(n)` operation as it requires iteration over every UTF-8 character from
+             * the beginning of the view to the `index`-th position
              * 
-             * \param vi View to check the substring's containing
+             * \throw invalid_argument
+             * \throw out_of_range
             */
             [[nodiscard]]
-            auto contains (view const& vi) const -> bool
+            auto get (size_type index) const -> char_type
             {
-                return !! find(vi);
+                if (index < 0) throw invalid_argument{ "Negative character index" };
+
+                return begin()[index];
+            }
+
+            /**
+             * \brief Getting the codepoint of the first character of the view
+             * 
+             * \throw out_of_range
+            */
+            [[nodiscard]]
+            auto front () const -> char_type
+            {
+                return get(0);
+            }
+
+            /**
+             * \brief Getting the codepoint of the last character of the view
+             * 
+             * \note This is an `O(1)` operation
+             * 
+             * \throw out_of_range
+            */
+            [[nodiscard]]
+            auto back () const -> char_type
+            {
+                return *backward().begin();
+            }
+
+            /**
+             * \brief Predicate. Returns `trie` if the view contains at least single specified
+             * substring from the presented list
+             * 
+             * \param value First substring to search
+             * \param pack Other substrings to search
+            */
+            template <typename... View>
+            [[nodiscard]]
+            auto contains (view const& vi, View const&... pack) const -> bool
+            {
+                return !! find(vi, pack...);
             }
 
             /**
@@ -958,37 +1097,46 @@ namespace utf
             }
 
             /**
-             * \brief Predicate. Returns `trie` if the view contains at least single specified character
+             * \brief Predicate. Returns `trie` if the view contains at least single specified
+             * character from the presented list
              * 
-             * \param value Character to check its containing (given by its code point)
+             * \param ch First character to search
+             * \param pack Other characters to search
              * 
-             * \throw range_error
+             * \throw unicode_error
             */
+            template <typename... Char>
             [[nodiscard]]
-            auto contains (char_type value) const -> bool
+            auto contains (char_type ch, Char... pack) const -> bool
             {
-                return !! find(value);
+                return !! find(ch, pack...);
             }
 
             /**
-             * \brief Counts the number of substring occurences
+             * \brief Counts the number of occurences of all substrings in the pack
              * 
-             * \param vi Substring to count (by its view)
+             * \param vi First substring to count
+             * \param pack Other substrings to count
              * 
-             * \return Number of occurences
+             * \return Summary number of occurences
             */
+            template <typename... View>
             [[nodiscard]]
-            auto count (view const& vi) const -> size_type
+            auto count (view const& vi, View const&... pack) const -> size_type
             {
                 size_type cnt = 0;
 
                 for (auto it = begin(); !! it; ++it)
                 {
-                    if (
-                        it._base() + vi.size() <= bytes_end() &&
-                        std::equal(vi.bytes(), vi.bytes_end(), it._base())
-                    )
-                        ++cnt;
+                    // Single view comparer
+                    auto _equal = [&it, this] (view const& vcmp)
+                    {
+                        return it._base() + vcmp.size() <= bytes_end() &&
+                               std::equal(vcmp.bytes(), vcmp.bytes_end(), it._base());
+                    };
+
+                    // Folding comparison with all of the views in the pack
+                    cnt += _equal(vi) + (_equal(std::forward<view>(pack)) + ...);
                 }
                 return cnt;
             }
@@ -1014,22 +1162,34 @@ namespace utf
             }
 
             /**
-             * \brief Counts the number of occurences of the given characters
+             * \brief Counts the number of occurences of all characters in the pack
              * 
-             * \param value Character to count
+             * \param ch First character to count
+             * \param pack Other characters to count
              * 
-             * \return Number of occurences
+             * \return Summary number of occurences
              * 
-             * \throw range_error
+             * \throw unicode_error
             */
+            template <typename... Char>
             [[nodiscard]]
-            auto count (char_type value) const -> size_type
+            auto count (char_type ch, Char... pack) const -> size_type
             {
-                _validate_char(value, "Counting of an invalid Unicode character");
+                size_type cnt = 0;
 
-                return count_if(
-                    [&value] (char_type ch) { return value == ch; }
-                );
+                // Single character comparer
+                auto _equal = [] (char_type a, char_type b)
+                {
+                    _validate_char(b, "Counting of an invalid Unicode character");
+                    return a == b;
+                };
+
+                // Folding comparison with all of the characters in the pack
+                for (auto it = begin(); !! it; ++it)
+                {
+                    if (_equal(*it, ch) || (_equal(*it, (char_type)pack) || ...)) ++cnt;
+                }
+                return cnt;
             }
 
             /**
@@ -1155,7 +1315,7 @@ namespace utf
                     if (is_ascii(*ch)) {
                         continue;
                     }
-                    else if (auto sz = _charsize(ch); sz > 4) {
+                    else if (auto sz = string::_charsize(ch); sz > 4) {
                         return false;
                     }
                     else while (--sz) {
@@ -1213,7 +1373,9 @@ namespace utf
             {
                 return { bytes() - 1, this };
             }
-        };
+
+        };  // end class view
+
         // !SECTION
 
         friend auto get (std::istream&) -> char_type;
@@ -1244,12 +1406,13 @@ namespace utf
         {}
 
         /**
-         * \brief Constructs a string via given array of Unicode code points
+         * \brief Constructs a string via given array of Unicode codepoints
          * 
          * \param data Initializer list
          * 
-         * \throw range_error
+         * \throw unicode_error
         */
+        [[nodiscard]]
         static auto from_unicode (std::initializer_list<char_type> data) -> string
         {
             string tmp;
@@ -1270,7 +1433,7 @@ namespace utf
             
             for (auto ch : data)
             {
-                _validate_char(ch, "Source array contains a character with invalid code point");
+                _validate_char(ch, "Source array contains a character with invalid codepoint");
                 dit = _encode(dit, ch);
             }
 
@@ -1284,14 +1447,15 @@ namespace utf
          * 
          * \note The reverse operation is `make_bytes()`
          * 
-         * \throw range_error
+         * \throw unicode_error
         */
+        [[nodiscard]]
         static auto from_bytes (std::vector<uint8_t> const& vec) -> string
         {
             string tmp;
             tmp._bufinit((void*)vec.data(), vec.size());
 
-            if (!tmp.is_valid()) throw range_error{ "Source vector contains invalid UTF-8 data" };
+            if (!tmp.is_valid()) throw unicode_error{ "Source vector contains invalid UTF-8 data" };
 
             return tmp;
         }
@@ -1301,6 +1465,7 @@ namespace utf
          * 
          * \param stds Source `std::string` to construct from
         */
+        [[nodiscard]]
         static auto from_std_string (std::string const& stds) -> string
         {
             string tmp;
@@ -1454,7 +1619,7 @@ namespace utf
         [[nodiscard]]
         auto last (size_type N) const -> view
         {
-            return chars().backward().truncate(0, N).forward();
+            return chars().reverse().truncate(0, N).reverse();
         }
 
         /**
@@ -1485,67 +1650,24 @@ namespace utf
         }
 
         /**
-         * \brief Creates and returns an `std::vector` object containing the characters' code points
+         * \brief Creates and returns an `std::vector` object containing the characters' codepoints
         */
         [[nodiscard]]
         auto as_unicode () const -> std::vector<char_type>
         {
             std::vector<char_type> tmp;
 
-            for (auto ptr = bytes(); ptr != bytes_end(); ptr += _charsize(ptr))
+            auto vi = chars(); for (auto ch : vi)
             {
-                tmp.push_back(_decode(ptr));
+                tmp.push_back(ch);
             }
             return tmp;
         }
 
         /**
-         * \brief Getting the code point of the character by index in the string
-         *
-         * \param index Index of the character in range `[0; length())`
-         *
-         * \note This is an `O(n)` operation as it requires iteration over every UTF-8 character from
-         * the beginning of the string to `index`-th position
-         * 
-         * \throw invalid_argument
-         * \throw out_of_range
-        */
-        [[nodiscard]]
-        auto get (size_type index) const -> char_type
-        {
-            if (index < 0) throw invalid_argument{ "Negative character index" };
-
-            return chars().begin()[index];
-        }
-
-        /**
-         * \brief Getting the code point of the first character of the string
-         * 
-         * \throw out_of_range
-        */
-        [[nodiscard]]
-        auto front () const -> char_type
-        {
-            return get(0);
-        }
-
-        /**
-         * \brief Getting the code point of the last character of the string
-         * 
-         * \note This is an `O(1)` operation
-         * 
-         * \throw out_of_range
-        */
-        [[nodiscard]]
-        auto back () const -> char_type
-        {
-            return *chars().backward().begin();
-        }
-
-        /**
          * \brief Predicate. Returns `true` if the string contains ASCII-only characters
          *
-         * \note ASCII-subset of Unicode is presented by code points 0-127 (`0x00`-`0x7F`)
+         * \note ASCII-subset of Unicode is presented by codepoints 0-127 (`0x00`-`0x7F`)
         */
         [[nodiscard]]
         auto is_ascii () const -> bool
@@ -1560,9 +1682,9 @@ namespace utf
         /**
          * \brief Predicate. Returns `true` if the character is ASCII-valid
          * 
-         * \param ch Character's code point
+         * \param ch Character's codepoint
          *
-         * \note ASCII-subset of Unicode is presented by code points 0-127 (`0x00`-`0x7F`)
+         * \note ASCII-subset of Unicode is presented by codepoints 0-127 (`0x00`-`0x7F`)
         */
         [[nodiscard]]
         static auto is_ascii (char_type ch) -> bool
@@ -1573,7 +1695,7 @@ namespace utf
         /**
          * \brief Predicate. Returns `true` if the character is UTF-8-valid
          * 
-         * \param ch Character's code point
+         * \param ch Character's codepoint
         */
         [[nodiscard]]
         static auto is_valid (char_type ch) -> bool
@@ -1590,7 +1712,7 @@ namespace utf
         {
             for (auto ptr = bytes(); ptr != bytes_end(); ++ptr)
             {
-                if (is_ascii(*ptr)) *ptr = uint8_t(tolower(*ptr));
+                if (is_ascii(*ptr)) *ptr = uint8_t(std::tolower(*ptr));
             }
             return *this;
         }
@@ -1604,7 +1726,7 @@ namespace utf
         {
             for (auto ptr = bytes(); ptr != bytes_end(); ++ptr)
             {
-                if (is_ascii(*ptr)) *ptr = uint8_t(toupper(*ptr));
+                if (is_ascii(*ptr)) *ptr = uint8_t(std::toupper(*ptr));
             }
             return *this;
         }
@@ -1746,11 +1868,11 @@ namespace utf
         /**
          * \brief Appends a given Unicode character to the end of the string
          *
-         * \param ch Code point of appending character
+         * \param ch Codepoint of appending character
          *
          * \return Reference to the modified string
          * 
-         * \throw range_error
+         * \throw unicode_error
         */
         auto push (char_type ch) -> string&
         {
@@ -1775,7 +1897,7 @@ namespace utf
         }
 
         /**
-         * \brief Removes the last character from the string and returns its code point
+         * \brief Removes the last character from the string and returns its codepoint
          * 
          * \throw underflow_error
         */
@@ -1783,7 +1905,7 @@ namespace utf
         {
             if (is_empty()) throw underflow_error{ "Pop from empty string" };
 
-            auto it = chars().backward().begin();
+            auto it = chars().reverse().begin();
             _end = it._base();
 
             return *it;
@@ -1793,12 +1915,12 @@ namespace utf
          * \brief Inserts the Unicode character into the string
          *
          * \param pos Inserting position
-         * \param value Unicode character's code point
+         * \param value Unicode character's codepoint
          *
          * \return Reference to the modified string
          * 
          * \throw invalid_argument
-         * \throw range_error
+         * \throw unicode_error
         */
         auto insert (size_type pos, char_type value) -> string&
         {
@@ -1814,12 +1936,12 @@ namespace utf
          * \brief Inserts the Unicode character into the string
          *
          * \param iter Inserting position (by iterator)
-         * \param value Unicode character's code point
+         * \param value Unicode character's codepoint
          *
          * \return Reference to the modified string
          * 
          * \throw out_of_range
-         * \throw range_error
+         * \throw unicode_error
         */
         auto insert (view::iterator const& iter, char_type value) -> string&
         {
@@ -1893,7 +2015,7 @@ namespace utf
         {
             for (;;)
             {
-                if (auto range = find(vi); !! range) replace(range, other);
+                if (auto range = chars().find(vi); !! range) replace(range, other);
                 else
                     break;
             }
@@ -1904,18 +2026,16 @@ namespace utf
          * \brief Replaces all characters satisfying specified criteria by another
          * 
          * \param pred Checking predicate
-         * \param value Replacing character's code point
+         * \param value Replacing character's codepoint
          * 
          * \return Reference to the modified string
          * 
-         * \throw range_error
+         * \throw unicode_error
         */
         template <typename Functor>
         auto replace_all_if (Functor&& pred, char_type value) -> string&
         {
             _validate_char(value, "Replacing by an invalid Unicode character");
-
-            // FIXME Low performance!
 
             auto matches = chars().matches_if(pred);
             for (auto& off : matches)
@@ -1929,11 +2049,11 @@ namespace utf
          * \brief Replaces all occurences of the given character by another
          * 
          * \param what Character to replace
-         * \param value Replacing character's code point
+         * \param value Replacing character's codepoint
          * 
          * \return Reference to the modified string
          * 
-         * \throw range_error
+         * \throw unicode_error
         */
         auto replace_all (char_type what, char_type value) -> string&
         {
@@ -2003,7 +2123,6 @@ namespace utf
                 std::copy(vi_en, bytes_end(), vi_be);
                 _end -= vi.size();
             }
-
             return *this;
         }
 
@@ -2034,125 +2153,7 @@ namespace utf
              *  bytes()       bytes_end()
             */
         }
-
-
-        /**
-         * \brief Search for the given substring inside entire string
-         * 
-         * \param vi Substring to search (by its view)
-         * 
-         * \return View of first occurrence of the substring or `[end(); end())` if it does not found
-        */
-        [[nodiscard]]
-        auto find (view const& vi) const -> view
-        {
-            auto it_1 = chars().find(vi);
-            auto it_2{ it_1 };
-
-            if (!! it_1) it_2._ptrbase = it_1._base() + vi.size();
-
-            return { it_1, it_2 };
-        }
-
-        /**
-         * \brief Predicate. Returns `true` if the string starts with the view's data
-         * 
-         * \param vi View to match
-        */
-        [[nodiscard]]
-        auto starts_with (view const& vi) const -> bool
-        {
-            return chars().starts_with(vi);
-        }
-
-        /**
-         * \brief Predicate. Returns `true` if the string ends with the view's data
-         * 
-         * \param vi View to match
-        */
-        [[nodiscard]]
-        auto ends_with (view const& vi) const -> bool
-        {
-            return chars().ends_with(vi);
-        }
-
-        /**
-         * \brief Counts the number of substring occurences
-         * 
-         * \param vi Substring to count (by its view)
-         * 
-         * \return Number of occurences
-        */
-        [[nodiscard]]
-        auto count (view const& vi) const -> size_type
-        {
-            return chars().count(vi);
-        }
-
-        /**
-         * \brief Counts the number of characters satisfying specified criteria
-         * 
-         * \param pred Predicate to check
-         * 
-         * \return Number of occurences
-        */
-        template <typename Functor>
-        [[nodiscard]]
-        auto count_if (Functor&& pred) const -> size_type
-        {
-            return chars().count_if(pred);
-        }
-
-        /**
-         * \brief Counts the number of occurences of the given characters
-         * 
-         * \param value Character to count
-         * 
-         * \return Number of occurences
-         * 
-         * \throw range_error
-        */
-        [[nodiscard]]
-        auto count (char_type value) const -> size_type
-        {
-            return chars().count(value);
-        }
-
-        /**
-         * \brief Predicate. Returns `trie` if the string contains specified substring (by its view)
-         * 
-         * \param vi View to check the substring's containing
-        */
-        [[nodiscard]]
-        auto contains (view const& vi) const -> bool
-        {
-            return chars().contains(vi);
-        }
-
-        /**
-         * \brief Predicate. Returns `trie` if the string contains at least single specified character
-         * 
-         * \param value Character to check its containing (given by its code point)
-         * 
-         * \throw range_error
-        */
-        [[nodiscard]]
-        auto contains (char_type value) const -> bool
-        {
-            return chars().contains(value);
-        }
-
-        /**
-         * \brief Predicate. Returns `trie` if the string contains characters satisfying specified criteria
-         * 
-         * \param pred Predicate to check
-        */
-        template <typename Functor>
-        [[nodiscard]]
-        auto contains_if (Functor&& pred) const -> bool
-        {
-            return chars().contains_if(pred);
-        }
+        
 
         /**
          * \brief Removes all characters satisfying specified criteria
@@ -2176,11 +2177,11 @@ namespace utf
         /**
          * \brief Removes all occurrences of the character in the string
          * 
-         * \param value Character to remove (presented by its code point)
+         * \param value Character to remove (by its codepoint)
          * 
          * \return Reference to the modified string
          * 
-         * \throw range_error
+         * \throw unicode_error
         */
         auto remove (char_type value) -> string&
         {
@@ -2194,7 +2195,7 @@ namespace utf
         /**
          * \brief Removes all occurences of the substring in the current string
          * 
-         * \param vi Substring to remove (by its view)
+         * \param vi Substring to remove
          * 
          * \return Reference to the modified string
         */
@@ -2284,7 +2285,7 @@ namespace utf
         }
 
         /**
-         * \brief Replaces a character by given index by other string
+         * \brief Replaces all characters starting from given index by other string
          *
          * \param pos Replacement position
          * \param other New substring
@@ -2295,7 +2296,7 @@ namespace utf
         */
         auto replace (size_type pos, view const& other) -> string&
         {
-            return replace(pos, 1, other);
+            return replace(pos, npos, other);
         }
 
         /**
@@ -2331,7 +2332,7 @@ namespace utf
         /**
          * \brief Splits a string into 2 strings at specified position
          *
-         * \param pos Position of splitting
+         * \param pos Splitting position
          *
          * \return Right side of original string, length (`length() - pos`).
          * If `pos >= length()`, returns an empty string
@@ -2352,9 +2353,9 @@ namespace utf
          * \return Reference to the modified string
         */
         template <typename Functor>
-        auto trim (Functor&& pred) -> string&
+        auto trim_if (Functor&& pred) -> string&
         {
-            while (pred(back())) pop();
+            while (pred(chars().back())) pop();
 
             for (auto start = bytes(); start < bytes_end(); start += _charsize(start))
             {
@@ -2364,24 +2365,23 @@ namespace utf
                     break;
                 }
             }
-
             return *this;
         }
 
         /**
          * \brief Removes all characters satisfying specified criteria from both sides of the string
          * 
-         * \param value Character to trim (by its code point)
+         * \param value Character to trim (by its codepoint)
          * 
          * \return Reference to the modified string
          * 
-         * \throw range_error
+         * \throw unicode_error
         */
         auto trim (char_type value) -> string&
         {
             _validate_char(value, "Trimming an invalid Unicode character");
 
-            return trim(
+            return trim_if(
                 [&value] (char_type ch) { return value == ch; }
             );
         }
@@ -2393,7 +2393,7 @@ namespace utf
         */
         auto trim () -> string&
         {
-            return trim(utf::isspace);
+            return trim_if(_isspace);
         }
 
         /**
@@ -2415,7 +2415,7 @@ namespace utf
                 current != bytes_end();
                 current += _charsize(current)
             ) {
-                if (utf::isspace(_decode(current)))
+                if (_isspace(_decode(current)))
                 {
                     if (!series)
                     {
@@ -2568,7 +2568,7 @@ namespace utf
          * 
          * \param where Pointer to the character representation inside the buffer
          * 
-         * \return Characher's code point
+         * \return Characher's codepoint
          * 
          * \warning Method works correctly with valid UTF-8-encoded characters only
         */
@@ -2595,9 +2595,9 @@ namespace utf
 
         /**
          * \internal
-         * \brief Counts the bytes to store the encoded UTF-8 character by its code point
+         * \brief Counts the bytes to store the encoded UTF-8 character by its codepoint
          * 
-         * \param value Character's code point
+         * \param value Character's codepoint
          * 
          * \return Number of bytes
         */
@@ -2624,16 +2624,16 @@ namespace utf
 
         /**
          * \internal
-         * \brief Provokes a `range_error` exception throwing in case of invalid character's code point
+         * \brief Provokes a `unicode_error` exception throwing in case of invalid character's codepoint
          * 
-         * \param value Character to check (by its code point)
+         * \param value Character to check (by its codepoint)
          * \param exception_msg Message into exception object
          * 
-         * \throw range_error
+         * \throw unicode_error
         */
         static auto _validate_char (char_type value, const char* exception_msg) -> void
         {
-            if (!is_valid(value)) throw range_error{ exception_msg };
+            if (!is_valid(value)) throw unicode_error{ exception_msg };
         }
 
         /**
@@ -2641,7 +2641,7 @@ namespace utf
          * \brief Encodes an UTF-8 character
          * 
          * \param dest Destination pointer to the UTF-8 location inside the buffer
-         * \param value Character's code point
+         * \param value Character's codepoint
          * 
          * \return Pointer to the following byte
         */
@@ -2689,7 +2689,33 @@ namespace utf
             */
         }
 
-    };
+        /**
+         * \internal
+         * \brief Predicate. Returns `true` if a character is space-qualified
+         * 
+         * \param value Checking character's codepoint
+         * 
+         * \note Unlike `std::isspace`, this function also matches the Unicode spaces
+        */
+        [[nodiscard]]
+        static auto _isspace (char_type value) -> bool
+        {
+            auto _is_any = [value] (auto... lst) -> bool
+            {
+                return ((value == lst) || ...);
+            };
+
+            return std::isspace(value) || _is_any
+            (
+                0xA0, 0x1680, 0x180E,
+                0x2000, 0x2001, 0x2002, 0x2003,
+                0x2004, 0x2005, 0x2006, 0x2007,
+                0x2008, 0x2009, 0x200A, 0x200B,
+                0x202F, 0x205F, 0x3000, 0xFEFF
+            );
+        }
+
+    };  // end class string
 
     // ANCHOR Typedef: string_view
     using string_view = string::view;
@@ -2703,13 +2729,26 @@ namespace utf
         return 0xFEFF;
     }
 
+    /**
+     * \brief Predicate. Returns `true` if a character is space-qualified
+     * 
+     * \param value Checking character's codepoint
+     * 
+     * \note Unlike `std::isspace`, this function also matches the Unicode spaces
+    */
+    [[nodiscard]]
+    auto isspace (string::char_type value) -> bool
+    {
+        return string::_isspace(value);
+    }
+
     // ANCHOR Char-by-char i/o
     /**
      * \brief Reads an UTF-8 character from an input stream
      * 
      * \param in Input stream to read from
      * 
-     * \return Character's code point
+     * \return Character's codepoint
     */
     [[nodiscard]]
     auto get (std::istream& in) -> string::char_type
@@ -2729,7 +2768,7 @@ namespace utf
      * \brief Writes an UTF-8 character into an output stream
      * 
      * \param out Output stream to write into
-     * \param value Character's code point
+     * \param value Character's codepoint
     */
     auto put (std::ostream& out, string::char_type value) -> void
     {
@@ -2752,7 +2791,7 @@ namespace utf
         auto tmp_size = to.size();
         to._end = to.bytes();
 
-        for (auto ch = get(is); is && !utf::isspace(ch); ch = get(is))
+        for (auto ch = get(is); is && !isspace(ch); ch = get(is))
         {
             // Reuse available memory to avoid reallocation
             if (to.size() + string::_codebytes(ch) <= tmp_size)
@@ -2851,31 +2890,7 @@ namespace utf
         return mstr;
     }
 
-    /**
-     * \brief Predicate. Returns `true` if a character is space-qualified
-     * 
-     * \param value Checking character's code point
-     * 
-     * \note Unlike `std::isspace`, this function also matches the Unicode spaces
-    */
-    [[nodiscard]]
-    auto isspace (string::char_type value) -> bool
-    {
-        auto _is_any = [value] (auto... lst) -> bool
-        {
-            return ((value == lst) || ...);
-        };
-
-        return std::isspace(value) || _is_any
-        (
-            0xA0, 0x1680, 0x180E,
-            0x2000, 0x2001, 0x2002, 0x2003,
-            0x2004, 0x2005, 0x2006, 0x2007,
-            0x2008, 0x2009, 0x200A, 0x200B,
-            0x202F, 0x205F, 0x3000, 0xFEFF
-        );
-    }
-}
+}   // end namespace utf
 
 namespace std
 {
@@ -2885,11 +2900,15 @@ namespace std
      * \brief Iterator traits instantiation for the `string_view::iterator` class
     */
     template<>
-    struct iterator_traits <utf::string_view::iterator>
+    class iterator_traits <utf::string_view::iterator>
     {
-        using difference_type = utf::string::difference_type;
-        using value_type = utf::string::char_type;
-        using iterator_category = std::bidirectional_iterator_tag;
+        using Iter = utf::string_view::iterator;
+
+    public:
+
+        using difference_type   = Iter::difference_type;
+        using value_type        = Iter::value_type;
+        using iterator_category = Iter::iterator_category;
     };
 
     /**
@@ -2913,6 +2932,7 @@ namespace std
     {
         v1.swap(v2);
     }
-}
+
+}   // end namespace std
 
 #endif

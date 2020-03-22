@@ -1,6 +1,6 @@
 ![utf8cpp](https://user-images.githubusercontent.com/54913619/76170749-e8ae9b80-6195-11ea-8780-efbf16e64d9a.png)
 
-![version](https://img.shields.io/badge/version-0.7-brightgreen)
+![version](https://img.shields.io/badge/version-0.8-brightgreen)
 [![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE.md)
 [![help](https://img.shields.io/badge/help-wiki-red)](../../wiki)
 ![cpp-version](https://img.shields.io/badge/C%2B%2B-≥17-blue)
@@ -18,7 +18,7 @@ The class `utf::string` describes a dynamically, array-based, contiguous storage
 * ...and rights to view and change are completely divided between `string`s and `view`s by design!
 
 ### Installation
-1. ![download-solid](https://user-images.githubusercontent.com/54913619/76699933-4a559500-66c3-11ea-978a-48808ab0f852.png) [Download](https://github.com/qzminsky/utf8cpp/archive/v0.7.0.zip) the library source;
+1. ![download-solid](https://user-images.githubusercontent.com/54913619/76699933-4a559500-66c3-11ea-978a-48808ab0f852.png) [Download](https://github.com/qzminsky/utf8cpp/archive/v0.8.3.zip) the library source;
 2. `#include` the `string.h` file in your C++ project;
 3. Enjoy!
 
@@ -51,9 +51,9 @@ for (auto view = Line.chars(); auto ch : view)
 utf::string Line{ "Mr Dursley was the director of a firm called Grunnings" };
 
 // Remove all spaces
-Line.clone().remove_if(isspace);
-    /* or */
 Line.clone().remove(' ');
+    /* or */
+Line.clone().remove_if(utf::isspace);
     /* or */
 Line.clone().remove_if([](utf::string::char_type ch) { return isspace(ch); });
 
