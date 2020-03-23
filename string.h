@@ -31,7 +31,7 @@ static_assert(__cplusplus >= 201700L, "C++17 or higher is required");
  * \brief utf8cpp library source
  * \author Qzminsky
  * 
- * \version 0.8.5
+ * \version 0.8.5-a
  * \date 2020/03/24
 */
 namespace utf
@@ -2232,9 +2232,10 @@ namespace utf
         }
 
         /**
-         * \brief Removes all occurences of the substring in the current string
+         * \brief Removes all occurences of the substrings in the current string
          * 
-         * \param vi Substring to remove
+         * \param vi First substring to remove
+         * \param pack Other substrings to remove
          * 
          * \return Reference to the modified string
         */
@@ -2243,7 +2244,7 @@ namespace utf
         {
             for (;;)
             {
-                if (auto range = chars().find(vi, pack...); !! range) replace(range, other);
+                if (auto range = chars().find(vi, pack...); !! range) erase(range);
                 else
                     break;
             }
