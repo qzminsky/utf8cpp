@@ -13,11 +13,13 @@ static_assert(__cplusplus >= 201700L, "C++17 or higher is required");
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <functional>
 #include <initializer_list>
 #include <iostream>
 #include <iterator>
 #include <limits>
 #include <numeric>
+#include <set>
 #include <stdexcept>
 #include <string>
 #include <type_traits>
@@ -29,8 +31,8 @@ static_assert(__cplusplus >= 201700L, "C++17 or higher is required");
  * \brief utf8cpp library source
  * \author Qzminsky
  * 
- * \version 0.8.4
- * \date 2020/03/22
+ * \version 0.8.5
+ * \date 2020/03/24
 */
 namespace utf
 {
@@ -188,7 +190,7 @@ namespace utf
                  * 
                  * \return Reference to the modified iterator
                 */
-                auto free () -> iterator&
+                auto free () noexcept -> iterator&
                 {
                     _parent = nullptr;
                     return *this;
@@ -219,7 +221,7 @@ namespace utf
                  * \brief Predicate. Checks if the iterator have the parent view
                 */
                 [[nodiscard]]
-                auto is_bound() const -> bool
+                auto is_bound() const noexcept -> bool
                 {
                     return _parent;
                 }
@@ -230,7 +232,7 @@ namespace utf
                  * \param to Parent view candidate
                 */
                 [[nodiscard]]
-                auto is_bound(view& to) const -> bool
+                auto is_bound(view& to) const noexcept -> bool
                 {
                     return _parent == &to;
                 }
@@ -370,7 +372,7 @@ namespace utf
                  * \return The number of increments needed to go from `other` to `*this` if less.
                  * Otherwise, returns the negative number of increments from `*this` to `other`
                  * 
-                 * \note It also works with backward-directed views' iterators
+                 * \note It also works with backward-directed views' iterators, but doesn't with unbound ones
                  * 
                  * \throw bad_operation
                 */
@@ -449,7 +451,7 @@ namespace utf
                  * \return `true` if both iterators are pointing to the same characters; `false` otherwise
                 */
                 [[nodiscard]]
-                auto operator == (iterator const& other) const -> bool
+                auto operator == (iterator const& other) const noexcept -> bool
                 {
                     return _base() == other._base();
                 }
@@ -462,7 +464,7 @@ namespace utf
                  * \return `true` if comparing iterators are pointing to the different characters; `false` otherwise
                 */
                 [[nodiscard]]
-                auto operator != (iterator const& other) const -> bool
+                auto operator != (iterator const& other) const noexcept -> bool
                 {
                     return !(*this == other);
                 }
@@ -616,7 +618,7 @@ namespace utf
                  * \internal
                  * \brief Getting the base pointer of the iterator
                 */
-                auto _base () const -> pointer
+                auto _base () const noexcept -> pointer
                 {
                     return _ptrbase;
                 }
@@ -719,7 +721,7 @@ namespace utf
              * 
              * \return Reference to the modfied view
             */
-            auto reverse () -> view&
+            auto reverse () noexcept -> view&
             {
                 _direction = is_forward() ? direction::backward : direction::forward;
                 return *this;
@@ -755,7 +757,7 @@ namespace utf
              * \brief Predicate. Returns `true` if the view is forward-directed
             */
             [[nodiscard]]
-            auto is_forward () const -> bool
+            auto is_forward () const noexcept -> bool
             {
                 return _direction == direction::forward;
             }
@@ -764,7 +766,7 @@ namespace utf
              * \brief Predicate. Returns `true` if the view is backward-directed
             */
             [[nodiscard]]
-            auto is_backward () const -> bool
+            auto is_backward () const noexcept -> bool
             {
                 return _direction == direction::backward;
             }
@@ -791,9 +793,18 @@ namespace utf
              * \brief Returns the pointer to the beginning of the view's data
             */
             [[nodiscard]]
-            auto bytes () const -> pointer
+            auto bytes () const noexcept -> pointer
             {
                 return _forward_begin;
+            }
+
+            /**
+             * \brief Returns the pointer to the ending of the view's data
+            */
+            [[nodiscard]]
+            auto bytes_end () const noexcept -> pointer
+            {
+                return _forward_end;
             }
 
             /**
@@ -803,18 +814,9 @@ namespace utf
              * Every UTF-8 character has a different size, from 1 to 4 bytes
             */
             [[nodiscard]]
-            auto size () const -> size_type
+            auto size () const noexcept -> size_type
             {
-                return _forward_end - bytes();
-            }
-
-            /**
-             * \brief Returns the pointer to the ending of the view's data
-            */
-            [[nodiscard]]
-            auto bytes_end () const -> pointer
-            {
-                return bytes() + size();
+                return bytes_end() - bytes();
             }
 
             /**
@@ -834,7 +836,7 @@ namespace utf
              * \brief Predicate. Returns `true` if the view's range has zero-size
             */
             [[nodiscard]]
-            auto is_empty () const -> bool
+            auto is_empty () const noexcept -> bool
             {
                 return size() == 0;
             }
@@ -843,7 +845,7 @@ namespace utf
              * \brief Predicate operator. Returns `true` if the view is empty
             */
             [[nodiscard]]
-            auto operator ! () const -> bool
+            auto operator ! () const noexcept -> bool
             {
                 return is_empty();
             }
@@ -856,7 +858,7 @@ namespace utf
             */
             template <typename... View>
             [[nodiscard]]
-            auto matches (view const& vi, View const&... pack) const -> std::vector<iterator>
+            auto matches (view const& vi, View const&... pack) const noexcept -> std::vector<iterator>
             {
                 std::vector<iterator> res;
 
@@ -887,7 +889,7 @@ namespace utf
             */
             template <typename Functor>
             [[nodiscard]]
-            auto matches_if (Functor&& pred) const -> std::vector<iterator>
+            auto matches_if (Functor&& pred) const noexcept -> std::vector<iterator>
             {
                 std::vector<iterator> res;
 
@@ -937,23 +939,43 @@ namespace utf
             */
             template <typename... View>
             [[nodiscard]]
-            auto find (view const& vi, View const&... pack) const -> view
+            auto find (view const& vi, View const&... pack) const noexcept -> view
             {
-                for (auto it = begin(); !! it; ++it)
+                // Single view comparer
+                auto _equal = [this] (pointer pcmp, view const& vcmp)
                 {
-                    // Single view comparer
-                    auto _equal = [this] (pointer pcmp, view const& vcmp)
-                    {
-                        return pcmp + vcmp.size() <= bytes_end() &&
-                               std::equal(vcmp.bytes(), vcmp.bytes_end(), pcmp);
-                    };
+                    return pcmp + vcmp.size() <= bytes_end() &&
+                           std::equal(vcmp.bytes(), vcmp.bytes_end(), pcmp);
+                };
 
-                    // Folding comparison with all of the views in the pack
-                    if (
-                        auto ptr = it._base();
-                        _equal(ptr, vi) || (_equal(ptr, std::forward<view>(pack)) || ...)
-                    )
-                        return { ptr, ptr + vi.size() };
+                // Single argument case
+                if constexpr (sizeof...(pack) == 0)
+                {
+                    for (auto it = begin(); !! it; ++it)
+                    {
+                        if (
+                            auto ptr = it._base();
+                            _equal(ptr, vi)
+                        )
+                            return { ptr, ptr + vi.size() };
+                    }
+                }
+                // Multiple arguments stores into a backward-sorted set first
+                else
+                {
+                    std::set<view, std::greater<view>> patterns { vi, pack... };
+
+                    for (auto it = begin(); !! it; ++it)
+                    {
+                        for (auto& pattern : patterns)
+                        {
+                            if (
+                                auto ptr = it._base();
+                                _equal(ptr, pattern)
+                            )
+                                return { ptr, ptr + pattern.size() };
+                        }
+                    }
                 }
                 return { end(), end() };
             }
@@ -967,7 +989,7 @@ namespace utf
             */
             template <typename Functor>
             [[nodiscard]]
-            auto find_if (Functor&& pred) const -> iterator
+            auto find_if (Functor&& pred) const noexcept -> iterator
             {
                 for (auto it = begin(); !! it; ++it)
                 {
@@ -998,11 +1020,13 @@ namespace utf
                 };
 
                 // Folding comparison with all of the characters in the pack
-                for (auto it = begin(); !! it; ++it)
-                {
-                    if (_equal(*it, ch) || (_equal(*it, (char_type)pack) || ...)) return it;
-                }
-                return end();
+                return find_if
+                (
+                    [ch, pack..., _equal] (char_type cmp)
+                    {
+                        return _equal(cmp, ch) || (_equal(cmp, (char_type)pack) || ...);
+                    }
+                );
             }
 
             /**
@@ -1011,7 +1035,7 @@ namespace utf
              * \param vi View to match
             */
             [[nodiscard]]
-            auto starts_with (view const& vi) const -> bool
+            auto starts_with (view const& vi) const noexcept -> bool
             {
                 return (size() >= vi.size()) && std::equal(vi.bytes(), vi.bytes_end(), bytes());
             }
@@ -1022,7 +1046,7 @@ namespace utf
              * \param vi View to match
             */
             [[nodiscard]]
-            auto ends_with (view const& vi) const -> bool
+            auto ends_with (view const& vi) const noexcept -> bool
             {
                 return (size() >= vi.size()) && std::equal(vi.bytes(), vi.bytes_end(), bytes_end() - vi.size());
             }
@@ -1079,7 +1103,7 @@ namespace utf
             */
             template <typename... View>
             [[nodiscard]]
-            auto contains (view const& vi, View const&... pack) const -> bool
+            auto contains (view const& vi, View const&... pack) const noexcept -> bool
             {
                 return !! find(vi, pack...);
             }
@@ -1091,7 +1115,7 @@ namespace utf
             */
             template <typename Functor>
             [[nodiscard]]
-            auto contains_if (Functor&& pred) const -> bool
+            auto contains_if (Functor&& pred) const noexcept -> bool
             {
                 return !! find_if(pred);
             }
@@ -1122,7 +1146,7 @@ namespace utf
             */
             template <typename... View>
             [[nodiscard]]
-            auto count (view const& vi, View const&... pack) const -> size_type
+            auto count (view const& vi, View const&... pack) const noexcept -> size_type
             {
                 size_type cnt = 0;
 
@@ -1150,7 +1174,7 @@ namespace utf
             */
             template <typename Functor>
             [[nodiscard]]
-            auto count_if (Functor&& pred) const -> size_type
+            auto count_if (Functor&& pred) const noexcept -> size_type
             {
                 size_type cnt = 0;
 
@@ -1185,11 +1209,13 @@ namespace utf
                 };
 
                 // Folding comparison with all of the characters in the pack
-                for (auto it = begin(); !! it; ++it)
-                {
-                    if (_equal(*it, ch) || (_equal(*it, (char_type)pack) || ...)) ++cnt;
-                }
-                return cnt;
+                return count_if
+                (
+                    [ch, pack..., _equal] (char_type cmp)
+                    {
+                        return _equal(cmp, ch) || (_equal(cmp, (char_type)pack) || ...);
+                    }
+                );
             }
 
             /**
@@ -1230,7 +1256,7 @@ namespace utf
              * \return `true` if the views' data is equivalent to each other; `false` otherwise
             */
             [[nodiscard]]
-            auto operator == (view const& other) const -> bool
+            auto operator == (view const& other) const noexcept -> bool
             {
                 return (size() == other.size()) && std::equal(bytes(), bytes_end(), other.bytes());
             }
@@ -1243,7 +1269,7 @@ namespace utf
              * \return `true` if the views' data differs from each other; `false` otherwise
             */
             [[nodiscard]]
-            auto operator != (view const& other) const -> bool
+            auto operator != (view const& other) const noexcept -> bool
             {
                 return !(*this == other);
             }
@@ -1257,7 +1283,7 @@ namespace utf
              * `false` otherwise
             */
             [[nodiscard]]
-            auto operator < (view const& vi) const -> bool
+            auto operator < (view const& vi) const noexcept -> bool
             {
                 return std::lexicographical_compare(begin(), end(), vi.begin(), vi.end());
             }
@@ -1271,7 +1297,7 @@ namespace utf
              * `false` otherwise
             */
             [[nodiscard]]
-            auto operator > (view const& vi) const -> bool
+            auto operator > (view const& vi) const noexcept -> bool
             {
                 return vi < *this;
             }
@@ -1285,7 +1311,7 @@ namespace utf
              * `false` otherwise
             */
             [[nodiscard]]
-            auto operator <= (view const& vi) const -> bool
+            auto operator <= (view const& vi) const noexcept -> bool
             {
                 return !(*this > vi);
             }
@@ -1299,7 +1325,7 @@ namespace utf
              * `false` otherwise
             */
             [[nodiscard]]
-            auto operator >= (view const& vi) const -> bool
+            auto operator >= (view const& vi) const noexcept -> bool
             {
                 return !(*this < vi);
             }
@@ -1308,7 +1334,7 @@ namespace utf
              * \brief Predicate. Checks if the view contains only valid UTF-8 characters
             */
             [[nodiscard]]
-            auto is_valid () const -> bool
+            auto is_valid () const noexcept -> bool
             {
                 for (auto ch = bytes(); ch != bytes_end(); ++ch)
                 {
@@ -1381,7 +1407,7 @@ namespace utf
         friend auto get (std::istream&) -> char_type;
         friend auto put (std::ostream&, char_type) -> void;
         friend auto operator >> (std::istream&, string&) -> std::istream&;
-        friend auto isspace (string::char_type) -> bool;
+        friend auto isspace (string::char_type) noexcept -> bool;
 
         /**
          * \brief Default constructor
@@ -1564,7 +1590,7 @@ namespace utf
          * \note This is an `O(1)` operation as it uses a pre-known range
         */
         [[nodiscard]]
-        auto chars () const -> view
+        auto chars () const noexcept -> view
         {
             return *this;
         }
@@ -1626,7 +1652,7 @@ namespace utf
          * \brief Returns the pointer to the beginning of the string's data
         */
         [[nodiscard]]
-        auto bytes () const -> pointer
+        auto bytes () const noexcept -> pointer
         {
             return _repr;
         }
@@ -1635,7 +1661,7 @@ namespace utf
          * \brief Returns the pointer to the ending of the string's data
         */
         [[nodiscard]]
-        auto bytes_end () const -> pointer
+        auto bytes_end () const noexcept -> pointer
         {
             return _end;
         }
@@ -1670,7 +1696,7 @@ namespace utf
          * \note ASCII-subset of Unicode is presented by codepoints 0-127 (`0x00`-`0x7F`)
         */
         [[nodiscard]]
-        auto is_ascii () const -> bool
+        auto is_ascii () const noexcept -> bool
         {
             for (auto ptr = bytes(); ptr != bytes_end(); ++ptr)
             {
@@ -1687,7 +1713,7 @@ namespace utf
          * \note ASCII-subset of Unicode is presented by codepoints 0-127 (`0x00`-`0x7F`)
         */
         [[nodiscard]]
-        static auto is_ascii (char_type ch) -> bool
+        static auto is_ascii (char_type ch) noexcept -> bool
         {
             return ch < 0x80;
         }
@@ -1698,7 +1724,7 @@ namespace utf
          * \param ch Character's codepoint
         */
         [[nodiscard]]
-        static auto is_valid (char_type ch) -> bool
+        static auto is_valid (char_type ch) noexcept -> bool
         {
             return ch <= 0x10FFFF;
         }
@@ -1708,7 +1734,7 @@ namespace utf
          * 
          * \return Reference to the modified string
         */
-        auto to_lower_ascii () -> string&
+        auto to_lower_ascii () noexcept -> string&
         {
             for (auto ptr = bytes(); ptr != bytes_end(); ++ptr)
             {
@@ -1722,7 +1748,7 @@ namespace utf
          * 
          * \return Reference to the modified string
         */
-        auto to_upper_ascii () -> string&
+        auto to_upper_ascii () noexcept -> string&
         {
             for (auto ptr = bytes(); ptr != bytes_end(); ++ptr)
             {
@@ -1739,7 +1765,7 @@ namespace utf
          * \return `true` if `*this` is equivalent to view's data; `false` otherwise
         */
         [[nodiscard]]
-        auto operator == (view const& vi) const -> bool
+        auto operator == (view const& vi) const noexcept -> bool
         {
             return vi == *this;
         }
@@ -1752,7 +1778,7 @@ namespace utf
          * \return `true` if `*this` differs from view's data; `false` otherwise
         */
         [[nodiscard]]
-        auto operator != (view const& vi) const -> bool
+        auto operator != (view const& vi) const noexcept -> bool
         {
             return vi != *this;
         }
@@ -1766,7 +1792,7 @@ namespace utf
          * `false` otherwise
         */
         [[nodiscard]]
-        auto operator < (view const& vi) const -> bool
+        auto operator < (view const& vi) const noexcept -> bool
         {
             return chars() < vi;
         }
@@ -1780,7 +1806,7 @@ namespace utf
          * `false` otherwise
         */
         [[nodiscard]]
-        auto operator > (view const& vi) const -> bool
+        auto operator > (view const& vi) const noexcept -> bool
         {
             return chars() > vi;
         }
@@ -1794,7 +1820,7 @@ namespace utf
          * `false` otherwise
         */
         [[nodiscard]]
-        auto operator <= (view const& vi) const -> bool
+        auto operator <= (view const& vi) const noexcept -> bool
         {
             return chars() <= vi;
         }
@@ -1808,7 +1834,7 @@ namespace utf
          * `false` otherwise
         */
         [[nodiscard]]
-        auto operator >= (view const& vi) const -> bool
+        auto operator >= (view const& vi) const noexcept -> bool
         {
             return chars() >= vi;
         }
@@ -1817,7 +1843,7 @@ namespace utf
          * \brief Predicate. Returns `true` if all of characters in the string are valid UTF-8-encoded
         */
         [[nodiscard]]
-        auto is_valid () const -> bool
+        auto is_valid () const noexcept -> bool
         {
             return chars().is_valid();
         }
@@ -1826,7 +1852,7 @@ namespace utf
          * \brief Predicate. Returns `true` if string does not contains any characters
         */
         [[nodiscard]]
-        auto is_empty () const -> bool
+        auto is_empty () const noexcept -> bool
         {
             return size() == 0;
         }
@@ -1835,7 +1861,7 @@ namespace utf
          * \brief Predicate operator. Returns `true` if the string is empty
         */
         [[nodiscard]]
-        auto operator ! () const -> bool
+        auto operator ! () const noexcept -> bool
         {
             return is_empty();
         }
@@ -1848,7 +1874,7 @@ namespace utf
          * \note This is an `O(n)` operation as it requires iteration over every UTF-8 character of the string
         */
         [[nodiscard]]
-        auto length () const -> size_type
+        auto length () const noexcept -> size_type
         {
             return chars().length();
         }
@@ -1860,7 +1886,7 @@ namespace utf
          * Each UTF-8 character has a different size, from 1 to 4 bytes
         */
         [[nodiscard]]
-        auto size () const -> size_type
+        auto size () const noexcept -> size_type
         {
             return bytes_end() - bytes();
         }
@@ -1958,10 +1984,10 @@ namespace utf
         }
         
         /**
-         * \brief Inserts the view into current string
+         * \brief Inserts the substring into current string
          *
          * \param pos Inserting position
-         * \param vi View to insert
+         * \param vi Substring to insert
          *
          * \return Reference to the modified string
          * 
@@ -1982,10 +2008,10 @@ namespace utf
         }
 
         /**
-         * \brief Inserts the view into current string
+         * \brief Inserts the substring into current string
          * 
          * \param iter Inserting position (by iterator)
-         * \param vi View to insert
+         * \param vi Substring to insert
          * 
          * \return Reference to the modified string
          * 
@@ -2004,9 +2030,9 @@ namespace utf
         }
 
         /**
-         * \brief Replaces all occurences of the given view (by its data) by another
+         * \brief Replaces all occurences of the given substring by another
          * 
-         * \param vi View to replace
+         * \param vi Substring pattern to replace
          * \param other Replacing data
          * 
          * \return Reference to the modified string
@@ -2070,7 +2096,7 @@ namespace utf
          * 
          * \return Reference to the modified string
         */
-        auto clear () -> string&
+        auto clear () noexcept -> string&
         {
             delete[] bytes();
             _repr = _end = nullptr;
@@ -2113,7 +2139,8 @@ namespace utf
         */
         auto erase (view const& vi) -> string&
         {
-            if (auto vi_be = vi.begin()._base(), vi_en = vi.end()._base();
+            if (
+                auto vi_be = vi.begin()._base(), vi_en = vi.end()._base();
                 _range_check(vi_be) ||
                 _range_check(vi_en)
             ) {
@@ -2163,11 +2190,11 @@ namespace utf
          * \return Reference to the modified string
         */
         template <typename Functor>
-        auto remove_if (Functor&& pred) -> string&
+        auto remove_if (Functor&& pred) noexcept -> string&
         {
             for (auto it = chars().begin(); it._base() != bytes_end();)
             {
-                if (pred(*it)) erase(view{ it });
+                if (pred(*it)) erase(it);
                 else
                     ++it;
             }
@@ -2175,20 +2202,32 @@ namespace utf
         }
 
         /**
-         * \brief Removes all occurrences of the character in the string
+         * \brief Removes all occurrences of the characters in the string
          * 
-         * \param value Character to remove (by its codepoint)
+         * \param ch First character to remove
+         * \param pack Other characters to remove
          * 
          * \return Reference to the modified string
          * 
          * \throw unicode_error
         */
-        auto remove (char_type value) -> string&
+        template <typename... Char>
+        auto remove (char_type ch, Char... pack) -> string&
         {
-            _validate_char(value, "Removing an invalid Unicode character");
+            // Single character comparer
+            auto _equal = [] (char_type a, char_type b)
+            {
+                _validate_char(b, "Removing an invalid Unicode character");
+                return a == b;
+            };
 
-            return remove_if(
-                [&value] (char_type ch) { return ch == value; }
+            // Folding comparison with all of the characters in the pack
+            return remove_if
+            (
+                [ch, pack..., _equal] (char_type cmp)
+                {
+                    return _equal(cmp, ch) || (_equal(cmp, (char_type)pack) || ...);
+                }
             );
         }
 
@@ -2199,17 +2238,14 @@ namespace utf
          * 
          * \return Reference to the modified string
         */
-        auto remove (view const& vi) -> string&
+        template <typename... View>
+        auto remove (view const& vi, View const&... pack) noexcept -> string&
         {
-            auto len = vi.length();
-
-            for (auto it = chars().begin(); it._base() != bytes_end();)
+            for (;;)
             {
-                if (auto rvi = view{ it, it + len }; rvi == vi)
-                {
-                    erase(rvi);
-                }
-                else ++it;
+                if (auto range = chars().find(vi, pack...); !! range) replace(range, other);
+                else
+                    break;
             }
             return *this;
         }
@@ -2369,7 +2405,7 @@ namespace utf
         }
 
         /**
-         * \brief Removes all characters satisfying specified criteria from both sides of the string
+         * \brief Removes all of the given characters from both sides of the string
          * 
          * \param value Character to trim (by its codepoint)
          * 
@@ -2546,7 +2582,7 @@ namespace utf
          * \warning Method works correctly with valid UTF-8-encoded characters only
         */
         [[nodiscard]]
-        static auto _charsize (pointer where) -> size_type
+        static auto _charsize (pointer where) noexcept -> size_type
         {
             if (!where) return 0;
 
@@ -2573,7 +2609,7 @@ namespace utf
          * \warning Method works correctly with valid UTF-8-encoded characters only
         */
         [[nodiscard]]
-        static auto _decode (pointer where) -> char_type
+        static auto _decode (pointer where) noexcept -> char_type
         {
             if (!where) return 0;
 
@@ -2602,7 +2638,7 @@ namespace utf
          * \return Number of bytes
         */
         [[nodiscard]]
-        static auto _codebytes (char_type value) -> size_type
+        static auto _codebytes (char_type value) noexcept -> size_type
         {
             if (value < 0x80) return 1;
             else if (value < 0x800) return 2;
@@ -2617,7 +2653,7 @@ namespace utf
          * \param ptr Checking pointer
         */
         [[nodiscard]]
-        auto _range_check (pointer ptr) -> bool
+        auto _range_check (pointer ptr) noexcept -> bool
         {
             return ptr < bytes() || ptr > bytes_end();
         }
@@ -2645,7 +2681,7 @@ namespace utf
          * 
          * \return Pointer to the following byte
         */
-        static auto _encode (pointer dest, char_type value) -> pointer
+        static auto _encode (pointer dest, char_type value) noexcept -> pointer
         {
             if (!dest) return nullptr;
 
@@ -2698,7 +2734,7 @@ namespace utf
          * \note Unlike `std::isspace`, this function also matches the Unicode spaces
         */
         [[nodiscard]]
-        static auto _isspace (char_type value) -> bool
+        static auto _isspace (char_type value) noexcept -> bool
         {
             auto _is_any = [value] (auto... lst) -> bool
             {
@@ -2724,7 +2760,7 @@ namespace utf
      * \brief UTF-8 `Byte Order Mark` character
     */
     [[nodiscard]]
-    constexpr auto BOM () -> string::char_type
+    constexpr auto BOM () noexcept -> string::char_type
     {
         return 0xFEFF;
     }
@@ -2737,7 +2773,7 @@ namespace utf
      * \note Unlike `std::isspace`, this function also matches the Unicode spaces
     */
     [[nodiscard]]
-    auto isspace (string::char_type value) -> bool
+    auto isspace (string::char_type value) noexcept -> bool
     {
         return string::_isspace(value);
     }
