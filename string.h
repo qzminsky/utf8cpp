@@ -13,7 +13,6 @@ static_assert(__cplusplus >= 201700L, "C++17 or higher is required");
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include <functional>
 #include <initializer_list>
 #include <iostream>
 #include <iterator>
@@ -31,7 +30,7 @@ static_assert(__cplusplus >= 201700L, "C++17 or higher is required");
  * \brief utf8cpp library source
  * \author Qzminsky
  * 
- * \version 0.8.5-a
+ * \version 0.8.6
  * \date 2020/03/24
 */
 namespace utf
@@ -221,7 +220,7 @@ namespace utf
                  * \brief Predicate. Checks if the iterator have the parent view
                 */
                 [[nodiscard]]
-                auto is_bound() const noexcept -> bool
+                auto is_bound () const noexcept -> bool
                 {
                     return _parent;
                 }
@@ -232,7 +231,7 @@ namespace utf
                  * \param to Parent view candidate
                 */
                 [[nodiscard]]
-                auto is_bound(view& to) const noexcept -> bool
+                auto is_bound (view& to) const noexcept -> bool
                 {
                     return _parent == &to;
                 }
@@ -431,7 +430,7 @@ namespace utf
                 }
 
                 /**
-                 * \brief Transforms an iterator into character's index in the parent view
+                 * \brief Calculates the pointing character's index in the parent view
                  * 
                  * \return Count of hops from the beginning of the view
                  * 
@@ -440,7 +439,7 @@ namespace utf
                 [[nodiscard]]
                 auto as_index () const -> difference_type
                 {
-                    return *this - _parent->forward().begin();
+                    return *this - _parent->begin();
                 }
 
                 /**
@@ -581,9 +580,11 @@ namespace utf
                     _confirm_op("Unbound iterator modifying");
 
                     // Reverse ending iterator stays at the same place...
-                    if (_base() == _parent->bytes() || _base() == _parent->_forward_rend()._base())
-                    {
-                        _ptrbase = _parent->bytes() - 1;
+                    if (
+                        auto rend_ptr = _parent->_forward_rend()._base();
+                        _base() == _parent->bytes() || _base() == rend_ptr
+                    ) {
+                        _ptrbase = rend_ptr;
                     }
 
                     // ...otherwise, the base pointer have to be decreased
@@ -853,30 +854,31 @@ namespace utf
             /**
              * \brief Returns a vector of the iterators pointing to the every occurence of the given substrings
              * 
-             * \param vi Substring to search
+             * \param vi First substring to search
              * \param pack Other substrings to search
             */
             template <typename... View>
             [[nodiscard]]
-            auto matches (view const& vi, View const&... pack) const noexcept -> std::vector<iterator>
+            auto matches (view const& vi, View const&... pack) const noexcept -> std::vector<view>
             {
-                std::vector<iterator> res;
+                std::vector<view> res;
 
                 for (auto it = begin(); !! it; ++it)
                 {
                     // Single view comparer
-                    auto _equal = [this] (pointer pcmp, view const& vcmp)
+                    // (pushes a view into the vector if it matches the `vcmp` pattern)
+                    auto _checked_push = [&res, &it, this] (view const& vcmp)
                     {
-                        return pcmp + vcmp.size() <= bytes_end() &&
-                               std::equal(vcmp.bytes(), vcmp.bytes_end(), pcmp);
+                        if (
+                            auto ptr = it._base();
+                            ptr + vcmp.size() <= bytes_end() &&
+                            std::equal(vcmp.bytes(), vcmp.bytes_end(), ptr)
+                        )
+                            res.push_back({ ptr, ptr + vcmp.size() });
                     };
 
-                    // Folding comparison with all of the views in the pack
-                    if (
-                        auto ptr = it._base();
-                        _equal(ptr, vi) || (_equal(ptr, std::forward<view>(pack)) || ...)
-                    )
-                        res.push_back(it);
+                    // Folding filling with all of the views in the pack
+                    _checked_push(vi), (_checked_push(pack), ...);
                 }
                 return res;
             }
@@ -924,7 +926,7 @@ namespace utf
                 // Folding comparison with all of the characters in the pack
                 for (auto it = begin(); !! it; ++it)
                 {
-                    if (_equal(*it, ch) || (_equal(*it, (char_type)pack) || ...)) res.push_back(it);
+                    if (_equal(*it, ch) || (_equal(*it, pack) || ...)) res.push_back(it);
                 }
                 return res;
             }
@@ -941,43 +943,28 @@ namespace utf
             [[nodiscard]]
             auto find (view const& vi, View const&... pack) const noexcept -> view
             {
-                // Single view comparer
-                auto _equal = [this] (pointer pcmp, view const& vcmp)
-                {
-                    return pcmp + vcmp.size() <= bytes_end() &&
-                           std::equal(vcmp.bytes(), vcmp.bytes_end(), pcmp);
-                };
+                view res = { end(), end() };
 
-                // Single argument case
-                if constexpr (sizeof...(pack) == 0)
+                for (auto it = begin(); !! it; ++it)
                 {
-                    for (auto it = begin(); !! it; ++it)
+                    // Single view comparer
+                    // (assignes the longest occurence for intersecting patterns, e.g., "match" & "matches")
+                    //                                                                             ^^^^^^^
+                    auto _check = [&res, &it, this] (view const& vcmp)
                     {
                         if (
                             auto ptr = it._base();
-                            _equal(ptr, vi)
+                            ptr + vcmp.size() <= bytes_end() &&
+                            std::equal(vcmp.bytes(), vcmp.bytes_end(), ptr) &&
+                            vcmp.size() > res.size()
                         )
-                            return { ptr, ptr + vi.size() };
-                    }
-                }
-                // Multiple arguments stores into a backward-sorted set first
-                else
-                {
-                    std::set<view, std::greater<view>> patterns { vi, pack... };
+                            res = { ptr, ptr + vcmp.size() };
+                    };
 
-                    for (auto it = begin(); !! it; ++it)
-                    {
-                        for (auto& pattern : patterns)
-                        {
-                            if (
-                                auto ptr = it._base();
-                                _equal(ptr, pattern)
-                            )
-                                return { ptr, ptr + pattern.size() };
-                        }
-                    }
+                    // Folding check all of the views in the pack
+                    _check(vi), (_check(pack), ...);
                 }
-                return { end(), end() };
+                return res;
             }
 
             /**
@@ -1024,7 +1011,7 @@ namespace utf
                 (
                     [ch, pack..., _equal] (char_type cmp)
                     {
-                        return _equal(cmp, ch) || (_equal(cmp, (char_type)pack) || ...);
+                        return _equal(cmp, ch) || (_equal(cmp, pack) || ...);
                     }
                 );
             }
@@ -1159,8 +1146,8 @@ namespace utf
                                std::equal(vcmp.bytes(), vcmp.bytes_end(), it._base());
                     };
 
-                    // Folding comparison with all of the views in the pack
-                    cnt += _equal(vi) + (_equal(std::forward<view>(pack)) + ...);
+                    // Folding counting with all of the views in the pack
+                    cnt += _equal(vi) + (_equal(pack) + ...);
                 }
                 return cnt;
             }
@@ -1213,7 +1200,7 @@ namespace utf
                 (
                     [ch, pack..., _equal] (char_type cmp)
                     {
-                        return _equal(cmp, ch) || (_equal(cmp, (char_type)pack) || ...);
+                        return _equal(cmp, ch) || (_equal(cmp, pack) || ...);
                     }
                 );
             }
@@ -2221,12 +2208,12 @@ namespace utf
                 return a == b;
             };
 
-            // Folding comparison with all of the characters in the pack
+            // Folding removing all of the characters in the pack
             return remove_if
             (
                 [ch, pack..., _equal] (char_type cmp)
                 {
-                    return _equal(cmp, ch) || (_equal(cmp, (char_type)pack) || ...);
+                    return _equal(cmp, ch) || (_equal(cmp, pack) || ...);
                 }
             );
         }
