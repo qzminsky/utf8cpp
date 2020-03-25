@@ -30,8 +30,8 @@ static_assert(__cplusplus >= 201700L, "C++17 or higher is required");
  * \brief utf8cpp library source
  * \author Qzminsky
  * 
- * \version 0.8.6
- * \date 2020/03/24
+ * \version 0.8.7
+ * \date 2020/03/25
 */
 namespace utf
 {
@@ -852,7 +852,7 @@ namespace utf
             }
 
             /**
-             * \brief Returns a vector of the iterators pointing to the every occurence of the given substrings
+             * \brief Returns a vector of the views pointing to the every occurence of the given substrings
              * 
              * \param vi First substring to search
              * \param pack Other substrings to search
@@ -871,6 +871,7 @@ namespace utf
                     {
                         if (
                             auto ptr = it._base();
+
                             ptr + vcmp.size() <= bytes_end() &&
                             std::equal(vcmp.bytes(), vcmp.bytes_end(), ptr)
                         )
@@ -954,9 +955,9 @@ namespace utf
                     {
                         if (
                             auto ptr = it._base();
-                            ptr + vcmp.size() <= bytes_end() &&
-                            std::equal(vcmp.bytes(), vcmp.bytes_end(), ptr) &&
-                            vcmp.size() > res.size()
+                            
+                            ptr + vcmp.size() <= bytes_end() && vcmp.size() > res.size() &&
+                            std::equal(vcmp.bytes(), vcmp.bytes_end(), ptr)
                         )
                             res = { ptr, ptr + vcmp.size() };
                     };
@@ -1009,7 +1010,7 @@ namespace utf
                 // Folding comparison with all of the characters in the pack
                 return find_if
                 (
-                    [ch, pack..., _equal] (char_type cmp)
+                    [&] (char_type cmp)
                     {
                         return _equal(cmp, ch) || (_equal(cmp, pack) || ...);
                     }
@@ -1186,8 +1187,6 @@ namespace utf
             [[nodiscard]]
             auto count (char_type ch, Char... pack) const -> size_type
             {
-                size_type cnt = 0;
-
                 // Single character comparer
                 auto _equal = [] (char_type a, char_type b)
                 {
@@ -1198,7 +1197,7 @@ namespace utf
                 // Folding comparison with all of the characters in the pack
                 return count_if
                 (
-                    [ch, pack..., _equal] (char_type cmp)
+                    [&] (char_type cmp)
                     {
                         return _equal(cmp, ch) || (_equal(cmp, pack) || ...);
                     }
@@ -1558,7 +1557,7 @@ namespace utf
         /**
          * \brief Deallocation of the memory buffer
         */
-        ~string () { delete[] bytes(); }
+        ~string () noexcept { delete[] bytes(); }
 
         /**
          * \brief Returns the copy of the original string
@@ -1700,7 +1699,7 @@ namespace utf
          * \note ASCII-subset of Unicode is presented by codepoints 0-127 (`0x00`-`0x7F`)
         */
         [[nodiscard]]
-        static auto is_ascii (char_type ch) noexcept -> bool
+        static constexpr auto is_ascii (char_type ch) noexcept -> bool
         {
             return ch < 0x80;
         }
@@ -1711,7 +1710,7 @@ namespace utf
          * \param ch Character's codepoint
         */
         [[nodiscard]]
-        static auto is_valid (char_type ch) noexcept -> bool
+        static constexpr auto is_valid (char_type ch) noexcept -> bool
         {
             return ch <= 0x10FFFF;
         }
@@ -2050,10 +2049,13 @@ namespace utf
         {
             _validate_char(value, "Replacing by an invalid Unicode character");
 
-            auto matches = chars().matches_if(pred);
-            for (auto& off : matches)
+            for (auto chs = chars();; chs = chars())
             {
-                replace(off, string::from_unicode({ value }));
+                if (auto it = chs.find_if(std::forward<Functor>(pred)); !! it)
+                {
+                    replace(it, from_unicode({ value }));
+                }
+                else break;
             }
             return *this;
         }
@@ -2211,7 +2213,7 @@ namespace utf
             // Folding removing all of the characters in the pack
             return remove_if
             (
-                [ch, pack..., _equal] (char_type cmp)
+                [&] (char_type cmp)
                 {
                     return _equal(cmp, ch) || (_equal(cmp, pack) || ...);
                 }
