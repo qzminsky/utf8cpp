@@ -28,17 +28,23 @@ The class `utf::string` describes a dynamically, array-based, contiguous storage
 * Creating the string:
 ```C++
 // Constructing via const char*
-utf::string MyString1{ "Amazing chest ahead" };
+utf::string MyString1 { "Amazing chest ahead" };
 
 // Using std::initializer_list with integral code points
-auto MyString2 = utf::string::from_unicode({ 'L',0xf6,'w','e','L',0xe9,'o','p','a','r','d' });
+auto MyString2 = utf::string::from_unicode({ 'L',0xf6,'w','e', 'L',0xe9,'o','p','a','r','d' });
 
-// Using vector of bytes (also UTF-8 representation)
-auto MyString3 = utf::string::from_bytes({'B','y','t','e','s'});
+// From a vector of bytes (already encoded in UTF-8)
+auto MyString3 = utf::string::from_bytes({ 'B','y','t','e','s' });
+
+// As multiple copies of the character
+utf::string MyString4 { 0xA2, 10 };   // == "¢¢¢¢¢¢¢¢¢¢"
+
+// From an std::string
+auto MyString5 = utf::string:from_std_string("Evil is evil");
 ```
 * Iterating over the characters:
 ```C++
-utf::string Line{ "Il buono, il brutto, il cattivo" };
+utf::string Line { "Il buono, il brutto, il cattivo" };
 
 // Using C++20 init-for
 for (auto view = Line.chars(); auto ch : view)
@@ -48,19 +54,33 @@ for (auto view = Line.chars(); auto ch : view)
 ```
 * Chaining:
 ```C++
-utf::string Line{ "Mr Dursley was the director of a firm called Grunnings" };
+utf::string Line { "Mr Dursley was the director of a firm called Grunnings" };
 
 // Remove all spaces
 Line.clone().remove(' ');
     /* or */
 Line.clone().remove_if(utf::isspace);
-    /* or */
-Line.clone().remove_if([](utf::string::char_type ch) { return isspace(ch); });
 
 // Cut the last word off
-Line.first(Line.chars().reverse().find_if(isspace).as_index()).to_string();
-//  ↑                                                         ↑
-//  no need to clone here — using the view and actually clone here
+std::cout <<
+Line.first(Line.chars().reverse().find_if(utf::isspace).as_forward_index()).to_string();
+//  ↑                                                                      ↑
+// no need to clone here — just operating with the view and actually clone here
+```
+* Multi-pattern operations:
+```C++
+utf::string Line { "Stumbling everywhere" };
+
+// Searches all occurences of every pattern in the parameter pack
+   auto all_matches = Line.chars().matches("every", "everywhere", "around");
+// ^^^^ - for substring-matching version the type is std::vector<view>
+for (auto& vi : all_matches)
+{
+  std::cout << vi << std::endl;   // prints "every", "everywhere"
+}
+
+// Removes the longest found substrings
+std::cout << Line.remove("every", "everywhere");  // prints "Stumbling ", not "Stumbling where"
 ```
 
 ## Complexity
