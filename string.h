@@ -24,14 +24,18 @@ static_assert(__cplusplus >= 201700L, "C++17 or higher is required");
 #include <type_traits>
 #include <vector>
 
+#if __cplusplus >= 202000L
+#   include <concepts>
+#endif
+
 /**
  * \namespace utf
  * 
  * \brief utf8cpp library source
- * \author Qzminsky
+ * \author qzminsky
  * 
- * \version 0.8.7
- * \date 2020/03/25
+ * \version 0.8.8
+ * \date 2020/03/26
 */
 namespace utf
 {
@@ -443,6 +447,38 @@ namespace utf
                 }
 
                 /**
+                 * \brief Calculates the pointing character's index in the parent view
+                 * as if its direction is forward
+                 * 
+                 * \return Count of hops from the beginning of the view
+                 * 
+                 * \note The result of `.backward().end().as_forward_index()` is -1
+                 * 
+                 * \throw bad_operation
+                */
+                [[nodiscard]]
+                auto as_forward_index () const -> difference_type
+                {
+                    return *this - _parent->forward().begin();
+                }
+
+                /**
+                 * \brief Calculates the pointing character's index in the parent view
+                 * as if its direction is backward
+                 * 
+                 * \return Count of hops from the beginning of the view
+                 * 
+                 * \note The result of `.forward().end().as_backward_index()` is -1
+                 * 
+                 * \throw bad_operation
+                */
+                [[nodiscard]]
+                auto as_backward_index () const -> difference_type
+                {
+                    return *this - _parent->backward().begin();
+                }
+
+                /**
                  * \brief Compares two iterators by equality
                  * 
                  * \param other Iterator to compare with (right)
@@ -830,7 +866,7 @@ namespace utf
             [[nodiscard]]
             auto length () const -> size_type
             {
-                return end() - begin();
+                return forward().end().as_index();
             }
 
             /**
@@ -858,6 +894,9 @@ namespace utf
              * \param pack Other substrings to search
             */
             template <typename... View>
+#if __cplusplus >= 202000L
+    requires std::convertible_to<View, view>
+#endif
             [[nodiscard]]
             auto matches (view const& vi, View const&... pack) const noexcept -> std::vector<view>
             {
@@ -891,6 +930,9 @@ namespace utf
              * \param pred Predicate to check
             */
             template <typename Functor>
+#if __cplusplus >= 202000L
+    requires std::predicate<Functor, char_type>
+#endif
             [[nodiscard]]
             auto matches_if (Functor&& pred) const noexcept -> std::vector<iterator>
             {
@@ -912,6 +954,9 @@ namespace utf
              * \throw unicode_error
             */
             template <typename... Char>
+#if __cplusplus >= 202000L
+    requires std::same_as<Char, char_type>
+#endif
             [[nodiscard]]
             auto matches (char_type ch, Char... pack) const -> std::vector<iterator>
             {
@@ -941,6 +986,9 @@ namespace utf
              * \return View of first occurrence of any substring or `[end(); end())` if it does not found
             */
             template <typename... View>
+#if __cplusplus >= 202000L
+    requires std::convertible_to<View, view>
+#endif
             [[nodiscard]]
             auto find (view const& vi, View const&... pack) const noexcept -> view
             {
@@ -976,6 +1024,9 @@ namespace utf
              * \return Iterator to the first occurence of the character
             */
             template <typename Functor>
+#if __cplusplus >= 202000L
+    requires std::predicate<Functor, char_type>
+#endif
             [[nodiscard]]
             auto find_if (Functor&& pred) const noexcept -> iterator
             {
@@ -997,6 +1048,9 @@ namespace utf
              * \throw unicode_error
             */
             template <typename... Char>
+#if __cplusplus >= 202000L
+    requires std::same_as<Char, char_type>
+#endif
             [[nodiscard]]
             auto find (char_type ch, Char... pack) const -> iterator
             {
@@ -1090,6 +1144,9 @@ namespace utf
              * \param pack Other substrings to search
             */
             template <typename... View>
+#if __cplusplus >= 202000L
+    requires std::convertible_to<View, view>
+#endif
             [[nodiscard]]
             auto contains (view const& vi, View const&... pack) const noexcept -> bool
             {
@@ -1102,6 +1159,9 @@ namespace utf
              * \param pred Predicate to check
             */
             template <typename Functor>
+#if __cplusplus >= 202000L
+    requires std::predicate<Functor, char_type>
+#endif
             [[nodiscard]]
             auto contains_if (Functor&& pred) const noexcept -> bool
             {
@@ -1118,6 +1178,9 @@ namespace utf
              * \throw unicode_error
             */
             template <typename... Char>
+#if __cplusplus >= 202000L
+    requires std::same_as<Char, char_type>
+#endif
             [[nodiscard]]
             auto contains (char_type ch, Char... pack) const -> bool
             {
@@ -1133,6 +1196,9 @@ namespace utf
              * \return Summary number of occurences
             */
             template <typename... View>
+#if __cplusplus >= 202000L
+    requires std::convertible_to<View, view>
+#endif
             [[nodiscard]]
             auto count (view const& vi, View const&... pack) const noexcept -> size_type
             {
@@ -1161,6 +1227,9 @@ namespace utf
              * \return Number of occurences
             */
             template <typename Functor>
+#if __cplusplus >= 202000L
+    requires std::predicate<Functor, char_type>
+#endif
             [[nodiscard]]
             auto count_if (Functor&& pred) const noexcept -> size_type
             {
@@ -1184,6 +1253,9 @@ namespace utf
              * \throw unicode_error
             */
             template <typename... Char>
+#if __cplusplus >= 202000L
+    requires std::same_as<Char, char_type>
+#endif
             [[nodiscard]]
             auto count (char_type ch, Char... pack) const -> size_type
             {
@@ -1418,6 +1490,25 @@ namespace utf
         {}
 
         /**
+         * \brief Filling constructor
+         * 
+         * \param value Character's codepoint
+         * \param count Number of character's copies
+        */
+        string (char_type value, size_type count)
+        {
+            auto bufsize = _codebytes(value) * count;
+
+            _repr = new uint8_t[bufsize];
+            _end = bytes() + bufsize;
+
+            for (pointer ptr = bytes(); count--;)
+            {
+                ptr = _encode(ptr, value);
+            }
+        }
+
+        /**
          * \brief Constructs a string via given array of Unicode codepoints
          * 
          * \param data Initializer list
@@ -1502,6 +1593,7 @@ namespace utf
         {
             _end = bytes() + vi.size(); auto ptr = bytes();
 
+            // Using for-cycle to construct from reversed views
             for (auto ch : vi) {
                 ptr = _encode(ptr, ch);
             }
@@ -1753,7 +1845,7 @@ namespace utf
         [[nodiscard]]
         auto operator == (view const& vi) const noexcept -> bool
         {
-            return vi == *this;
+            return vi == chars();
         }
 
         /**
@@ -1766,7 +1858,7 @@ namespace utf
         [[nodiscard]]
         auto operator != (view const& vi) const noexcept -> bool
         {
-            return vi != *this;
+            return vi != chars();
         }
 
         /**
@@ -2045,6 +2137,9 @@ namespace utf
          * \throw unicode_error
         */
         template <typename Functor>
+#if __cplusplus >= 202000L
+    requires std::predicate<Functor, char_type>
+#endif
         auto replace_all_if (Functor&& pred, char_type value) -> string&
         {
             _validate_char(value, "Replacing by an invalid Unicode character");
@@ -2179,6 +2274,9 @@ namespace utf
          * \return Reference to the modified string
         */
         template <typename Functor>
+#if __cplusplus >= 202000L
+    requires std::predicate<Functor, char_type>
+#endif
         auto remove_if (Functor&& pred) noexcept -> string&
         {
             for (auto it = chars().begin(); it._base() != bytes_end();)
@@ -2201,6 +2299,9 @@ namespace utf
          * \throw unicode_error
         */
         template <typename... Char>
+#if __cplusplus >= 202000L
+    requires std::same_as<Char, char_type>
+#endif
         auto remove (char_type ch, Char... pack) -> string&
         {
             // Single character comparer
@@ -2229,6 +2330,9 @@ namespace utf
          * \return Reference to the modified string
         */
         template <typename... View>
+#if __cplusplus >= 202000L
+    requires std::convertible_to<View, view>
+#endif
         auto remove (view const& vi, View const&... pack) noexcept -> string&
         {
             for (;;)
@@ -2379,6 +2483,9 @@ namespace utf
          * \return Reference to the modified string
         */
         template <typename Functor>
+#if __cplusplus >= 202000L
+    requires std::predicate<Functor, char_type>
+#endif
         auto trim_if (Functor&& pred) -> string&
         {
             while (pred(chars().back())) pop();
@@ -2688,11 +2795,11 @@ namespace utf
 
                 while (--size)
                 {
-                    *(dest + size) = value & 0x3F | 0x80;
+                    *(dest + size) = (value & 0x3F) | 0x80;
                     value >>= 6; mask >>= 1; mask |= 0x80;
                 }
 
-                *dest = value & 0x07 | mask;
+                *dest = (value & 0x07) | mask;
 
                 return dest + tmp;
             }
@@ -2728,7 +2835,7 @@ namespace utf
         {
             auto _is_any = [value] (auto... lst) -> bool
             {
-                return ((value == lst) || ...);
+                return ((value == (char_type)lst) || ...);
             };
 
             return std::isspace(value) || _is_any
@@ -2954,7 +3061,7 @@ namespace std
      * \param v1 First swappable view
      * \param v2 Second swappable view
     */
-    auto swap(utf::string_view& v1, utf::string_view& v2) noexcept -> void
+    auto swap (utf::string_view& v1, utf::string_view& v2) noexcept -> void
     {
         v1.swap(v2);
     }
