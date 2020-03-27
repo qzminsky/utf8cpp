@@ -34,8 +34,8 @@ static_assert(__cplusplus >= 201700L, "C++17 or higher is required");
  * \brief utf8cpp library source
  * \author qzminsky
  * 
- * \version 0.8.8
- * \date 2020/03/26
+ * \version 0.8.9
+ * \date 2020/03/27
 */
 namespace utf
 {
@@ -893,9 +893,12 @@ namespace utf
              * \param vi First substring to search
              * \param pack Other substrings to search
             */
-            template <typename... View>
 #if __cplusplus >= 202000L
-    requires std::convertible_to<View, view>
+            template <std::convertible_to<view>... View>
+#else
+            template <typename... View,
+                      typename = std::enable_if_t<std::conjunction_v<std::is_convertible<View, view>...>>
+            >
 #endif
             [[nodiscard]]
             auto matches (view const& vi, View const&... pack) const noexcept -> std::vector<view>
@@ -929,9 +932,12 @@ namespace utf
              * 
              * \param pred Predicate to check
             */
-            template <typename Functor>
 #if __cplusplus >= 202000L
-    requires std::predicate<Functor, char_type>
+            template <std::predicate<char_type> Functor>
+#else
+            template <typename Functor,
+                      typename = std::enable_if_t<std::is_invocable_v<Functor, char_type>>
+            >
 #endif
             [[nodiscard]]
             auto matches_if (Functor&& pred) const noexcept -> std::vector<iterator>
@@ -953,9 +959,12 @@ namespace utf
              * 
              * \throw unicode_error
             */
-            template <typename... Char>
 #if __cplusplus >= 202000L
-    requires std::same_as<Char, char_type>
+            template <std::convertible_to<char_type>... Char>
+#else
+            template <typename... Char,
+                      typename = std::enable_if_t<std::conjunction_v<std::is_convertible<Char, char_type>...>>
+            >
 #endif
             [[nodiscard]]
             auto matches (char_type ch, Char... pack) const -> std::vector<iterator>
@@ -985,9 +994,12 @@ namespace utf
              * 
              * \return View of first occurrence of any substring or `[end(); end())` if it does not found
             */
-            template <typename... View>
 #if __cplusplus >= 202000L
-    requires std::convertible_to<View, view>
+            template <std::convertible_to<view>... View>
+#else
+            template <typename... View,
+                      typename = std::enable_if_t<std::conjunction_v<std::is_convertible<View, view>...>>
+            >
 #endif
             [[nodiscard]]
             auto find (view const& vi, View const&... pack) const noexcept -> view
@@ -1004,14 +1016,18 @@ namespace utf
                         if (
                             auto ptr = it._base();
                             
-                            ptr + vcmp.size() <= bytes_end() && vcmp.size() > res.size() &&
-                            std::equal(vcmp.bytes(), vcmp.bytes_end(), ptr)
-                        )
+                            ptr + vcmp.size() <= bytes_end()
+                             && vcmp.size() > res.size()
+                             && std::equal(vcmp.bytes(), vcmp.bytes_end(), ptr)
+                        ) {
                             res = { ptr, ptr + vcmp.size() };
+                            return true;
+                        }
+                        return false;
                     };
 
                     // Folding check all of the views in the pack
-                    _check(vi), (_check(pack), ...);
+                    if (_check(vi) | (_check(pack) | ... | false)) break;
                 }
                 return res;
             }
@@ -1023,9 +1039,12 @@ namespace utf
              * 
              * \return Iterator to the first occurence of the character
             */
-            template <typename Functor>
 #if __cplusplus >= 202000L
-    requires std::predicate<Functor, char_type>
+            template <std::predicate<char_type> Functor>
+#else
+            template <typename Functor,
+                      typename = std::enable_if_t<std::is_invocable_v<Functor, char_type>>
+            >
 #endif
             [[nodiscard]]
             auto find_if (Functor&& pred) const noexcept -> iterator
@@ -1047,9 +1066,12 @@ namespace utf
              * 
              * \throw unicode_error
             */
-            template <typename... Char>
 #if __cplusplus >= 202000L
-    requires std::same_as<Char, char_type>
+            template <std::convertible_to<char_type>... Char>
+#else
+            template <typename... Char,
+                      typename = std::enable_if_t<std::conjunction_v<std::is_convertible<Char, char_type>...>>
+            >
 #endif
             [[nodiscard]]
             auto find (char_type ch, Char... pack) const -> iterator
@@ -1143,9 +1165,12 @@ namespace utf
              * \param value First substring to search
              * \param pack Other substrings to search
             */
-            template <typename... View>
 #if __cplusplus >= 202000L
-    requires std::convertible_to<View, view>
+            template <std::convertible_to<view>... View>
+#else
+            template <typename... View,
+                      typename = std::enable_if_t<std::conjunction_v<std::is_convertible<View, view>...>>
+            >
 #endif
             [[nodiscard]]
             auto contains (view const& vi, View const&... pack) const noexcept -> bool
@@ -1158,9 +1183,12 @@ namespace utf
              * 
              * \param pred Predicate to check
             */
-            template <typename Functor>
 #if __cplusplus >= 202000L
-    requires std::predicate<Functor, char_type>
+            template <std::predicate<char_type> Functor>
+#else
+            template <typename Functor,
+                      typename = std::enable_if_t<std::is_invocable_v<Functor, char_type>>
+            >
 #endif
             [[nodiscard]]
             auto contains_if (Functor&& pred) const noexcept -> bool
@@ -1177,9 +1205,12 @@ namespace utf
              * 
              * \throw unicode_error
             */
-            template <typename... Char>
 #if __cplusplus >= 202000L
-    requires std::same_as<Char, char_type>
+            template <std::convertible_to<char_type>... Char>
+#else
+            template <typename... Char,
+                      typename = std::enable_if_t<std::conjunction_v<std::is_convertible<Char, char_type>...>>
+            >
 #endif
             [[nodiscard]]
             auto contains (char_type ch, Char... pack) const -> bool
@@ -1195,9 +1226,12 @@ namespace utf
              * 
              * \return Summary number of occurences
             */
-            template <typename... View>
 #if __cplusplus >= 202000L
-    requires std::convertible_to<View, view>
+            template <std::convertible_to<view>... View>
+#else
+            template <typename... View,
+                      typename = std::enable_if_t<std::conjunction_v<std::is_convertible<View, view>...>>
+            >
 #endif
             [[nodiscard]]
             auto count (view const& vi, View const&... pack) const noexcept -> size_type
@@ -1226,9 +1260,12 @@ namespace utf
              * 
              * \return Number of occurences
             */
-            template <typename Functor>
 #if __cplusplus >= 202000L
-    requires std::predicate<Functor, char_type>
+            template <std::predicate<char_type> Functor>
+#else
+            template <typename Functor,
+                      typename = std::enable_if_t<std::is_invocable_v<Functor, char_type>>
+            >
 #endif
             [[nodiscard]]
             auto count_if (Functor&& pred) const noexcept -> size_type
@@ -1252,9 +1289,12 @@ namespace utf
              * 
              * \throw unicode_error
             */
-            template <typename... Char>
 #if __cplusplus >= 202000L
-    requires std::same_as<Char, char_type>
+            template <std::convertible_to<char_type>... Char>
+#else
+            template <typename... Char,
+                      typename = std::enable_if_t<std::conjunction_v<std::is_convertible<Char, char_type>...>>
+            >
 #endif
             [[nodiscard]]
             auto count (char_type ch, Char... pack) const -> size_type
@@ -1396,15 +1436,22 @@ namespace utf
             {
                 for (auto ch = bytes(); ch != bytes_end(); ++ch)
                 {
-                    if (is_ascii(*ch)) {
-                        continue;
-                    }
-                    else if (auto sz = string::_charsize(ch); sz > 4) {
-                        return false;
-                    }
-                    else while (--sz) {
-                        if (++ch == bytes_end() || (*ch & 0xC0) != 0x80) return false;
-                    }
+                    if (!_is_valid_utf(ch)) return false;
+                }
+                return true;
+            }
+
+            /**
+             * \brief Predicate. Returns `true` if the view contains ASCII-only characters
+             *
+             * \note ASCII-subset of Unicode is presented by codepoints 0-127 (`0x00`-`0x7F`)
+            */
+            [[nodiscard]]
+            auto is_ascii () const noexcept -> bool
+            {
+                for (auto ptr = bytes(); ptr != bytes_end(); ++ptr)
+                {
+                    if (!string::_is_ascii(*ptr)) return false;
                 }
                 return true;
             }
@@ -1458,6 +1505,27 @@ namespace utf
                 return { bytes() - 1, this };
             }
 
+            /**
+             * \internal
+             * \brief Predicate. Checks if a pointing character is Unicode-valid
+             * 
+             * \param ptr Pointer to the character
+            */
+            [[nodiscard]]
+            auto _is_valid_utf (pointer ptr) const noexcept -> bool
+            {
+                if (string::_is_ascii(*ptr)) {
+                    return true;
+                }
+                else if (auto sz = string::_charsize(ptr); sz > 4) {
+                    return false;
+                }
+                else while (--sz) {
+                    if (++ptr == bytes_end() || (*ptr & 0xC0) != 0x80) return false;
+                }
+                return true;
+            }
+
         };  // end class view
 
         // !SECTION
@@ -1465,7 +1533,9 @@ namespace utf
         friend auto get (std::istream&) -> char_type;
         friend auto put (std::ostream&, char_type) -> void;
         friend auto operator >> (std::istream&, string&) -> std::istream&;
-        friend auto isspace (string::char_type) noexcept -> bool;
+        friend auto is_space (char_type) noexcept -> bool;
+        friend constexpr auto is_ascii (char_type) noexcept -> bool;
+        friend constexpr auto is_valid (char_type) noexcept -> bool;
 
         /**
          * \brief Default constructor
@@ -1558,7 +1628,7 @@ namespace utf
             string tmp;
             tmp._bufinit((void*)vec.data(), vec.size());
 
-            if (!tmp.is_valid()) throw unicode_error{ "Source vector contains invalid UTF-8 data" };
+            if (!tmp.chars().is_valid()) throw unicode_error{ "Source vector contains invalid UTF-8 data" };
 
             return tmp;
         }
@@ -1769,45 +1839,6 @@ namespace utf
         }
 
         /**
-         * \brief Predicate. Returns `true` if the string contains ASCII-only characters
-         *
-         * \note ASCII-subset of Unicode is presented by codepoints 0-127 (`0x00`-`0x7F`)
-        */
-        [[nodiscard]]
-        auto is_ascii () const noexcept -> bool
-        {
-            for (auto ptr = bytes(); ptr != bytes_end(); ++ptr)
-            {
-                if (!is_ascii(*ptr)) return false;
-            }
-            return true;
-        }
-
-        /**
-         * \brief Predicate. Returns `true` if the character is ASCII-valid
-         * 
-         * \param ch Character's codepoint
-         *
-         * \note ASCII-subset of Unicode is presented by codepoints 0-127 (`0x00`-`0x7F`)
-        */
-        [[nodiscard]]
-        static constexpr auto is_ascii (char_type ch) noexcept -> bool
-        {
-            return ch < 0x80;
-        }
-
-        /**
-         * \brief Predicate. Returns `true` if the character is UTF-8-valid
-         * 
-         * \param ch Character's codepoint
-        */
-        [[nodiscard]]
-        static constexpr auto is_valid (char_type ch) noexcept -> bool
-        {
-            return ch <= 0x10FFFF;
-        }
-
-        /**
          * \brief Converts all ASCII characters in the string into lowercase
          * 
          * \return Reference to the modified string
@@ -1816,7 +1847,7 @@ namespace utf
         {
             for (auto ptr = bytes(); ptr != bytes_end(); ++ptr)
             {
-                if (is_ascii(*ptr)) *ptr = uint8_t(std::tolower(*ptr));
+                if (_is_ascii(*ptr)) *ptr = uint8_t(std::tolower(*ptr));
             }
             return *this;
         }
@@ -1830,7 +1861,7 @@ namespace utf
         {
             for (auto ptr = bytes(); ptr != bytes_end(); ++ptr)
             {
-                if (is_ascii(*ptr)) *ptr = uint8_t(std::toupper(*ptr));
+                if (_is_ascii(*ptr)) *ptr = uint8_t(std::toupper(*ptr));
             }
             return *this;
         }
@@ -1915,15 +1946,6 @@ namespace utf
         auto operator >= (view const& vi) const noexcept -> bool
         {
             return chars() >= vi;
-        }
-
-        /**
-         * \brief Predicate. Returns `true` if all of characters in the string are valid UTF-8-encoded
-        */
-        [[nodiscard]]
-        auto is_valid () const noexcept -> bool
-        {
-            return chars().is_valid();
         }
 
         /**
@@ -2136,9 +2158,12 @@ namespace utf
          * 
          * \throw unicode_error
         */
-        template <typename Functor>
 #if __cplusplus >= 202000L
-    requires std::predicate<Functor, char_type>
+        template <std::predicate<char_type> Functor>
+#else
+        template <typename Functor,
+                  typename = std::enable_if_t<std::is_invocable_v<Functor, char_type>>
+        >
 #endif
         auto replace_all_if (Functor&& pred, char_type value) -> string&
         {
@@ -2273,9 +2298,12 @@ namespace utf
          * 
          * \return Reference to the modified string
         */
-        template <typename Functor>
 #if __cplusplus >= 202000L
-    requires std::predicate<Functor, char_type>
+        template <std::predicate<char_type> Functor>
+#else
+        template <typename Functor,
+                  typename = std::enable_if_t<std::is_invocable_v<Functor, char_type>>
+        >
 #endif
         auto remove_if (Functor&& pred) noexcept -> string&
         {
@@ -2298,9 +2326,12 @@ namespace utf
          * 
          * \throw unicode_error
         */
-        template <typename... Char>
 #if __cplusplus >= 202000L
-    requires std::same_as<Char, char_type>
+        template <std::convertible_to<char_type>... Char>
+#else
+        template <typename... Char,
+                  typename = std::enable_if_t<std::conjunction_v<std::is_convertible<Char, char_type>...>>
+        >
 #endif
         auto remove (char_type ch, Char... pack) -> string&
         {
@@ -2329,9 +2360,12 @@ namespace utf
          * 
          * \return Reference to the modified string
         */
-        template <typename... View>
 #if __cplusplus >= 202000L
-    requires std::convertible_to<View, view>
+        template <std::convertible_to<view>... View>
+#else
+        template <typename... View,
+                  typename = std::enable_if_t<std::conjunction_v<std::is_convertible<View, view>...>>
+        >
 #endif
         auto remove (view const& vi, View const&... pack) noexcept -> string&
         {
@@ -2482,9 +2516,12 @@ namespace utf
          * 
          * \return Reference to the modified string
         */
-        template <typename Functor>
 #if __cplusplus >= 202000L
-    requires std::predicate<Functor, char_type>
+        template <std::predicate<char_type> Functor>
+#else
+        template <typename Functor,
+                  typename = std::enable_if_t<std::is_invocable_v<Functor, char_type>>
+        >
 #endif
         auto trim_if (Functor&& pred) -> string&
         {
@@ -2526,7 +2563,7 @@ namespace utf
         */
         auto trim () -> string&
         {
-            return trim_if(_isspace);
+            return trim_if(_is_space);
         }
 
         /**
@@ -2548,7 +2585,7 @@ namespace utf
                 current != bytes_end();
                 current += _charsize(current)
             ) {
-                if (_isspace(_decode(current)))
+                if (_is_space(_decode(current)))
                 {
                     if (!series)
                     {
@@ -2766,7 +2803,33 @@ namespace utf
         */
         static auto _validate_char (char_type value, const char* exception_msg) -> void
         {
-            if (!is_valid(value)) throw unicode_error{ exception_msg };
+            if (!_is_valid(value)) throw unicode_error{ exception_msg };
+        }
+
+        /**
+         * \internal
+         * \brief Predicate. Returns `true` if the character is ASCII-valid
+         * 
+         * \param ch Character's codepoint
+         *
+         * \note ASCII-subset of Unicode is presented by codepoints 0-127 (`0x00`-`0x7F`)
+        */
+        [[nodiscard]]
+        static constexpr auto _is_ascii (char_type ch) noexcept -> bool
+        {
+            return ch < 0x80;
+        }
+
+        /**
+         * \internal
+         * \brief Predicate. Returns `true` if the character is Unicode-valid
+         * 
+         * \param ch Character's codepoint
+        */
+        [[nodiscard]]
+        static constexpr auto _is_valid (char_type ch) noexcept -> bool
+        {
+            return ch <= 0x10FFFF;
         }
 
         /**
@@ -2831,7 +2894,7 @@ namespace utf
          * \note Unlike `std::isspace`, this function also matches the Unicode spaces
         */
         [[nodiscard]]
-        static auto _isspace (char_type value) noexcept -> bool
+        static auto _is_space (char_type value) noexcept -> bool
         {
             auto _is_any = [value] (auto... lst) -> bool
             {
@@ -2870,9 +2933,33 @@ namespace utf
      * \note Unlike `std::isspace`, this function also matches the Unicode spaces
     */
     [[nodiscard]]
-    auto isspace (string::char_type value) noexcept -> bool
+    auto is_space (string::char_type value) noexcept -> bool
     {
-        return string::_isspace(value);
+        return string::_is_space(value);
+    }
+
+    /**
+     * \brief Predicate. Returns `true` if the character is ASCII-valid
+     * 
+     * \param ch Character's codepoint
+     *
+     * \note ASCII-subset of Unicode is presented by codepoints 0-127 (`0x00`-`0x7F`)
+    */
+    [[nodiscard]]
+    constexpr auto is_ascii (string::char_type ch) noexcept -> bool
+    {
+        return string::_is_ascii(ch);
+    }
+
+    /**
+     * \brief Predicate. Returns `true` if the character is Unicode-valid
+     * 
+     * \param ch Character's codepoint
+    */
+    [[nodiscard]]
+    constexpr auto is_valid (string::char_type ch) noexcept -> bool
+    {
+        return string::_is_valid(ch);
     }
 
     // ANCHOR Char-by-char i/o
@@ -2886,7 +2973,7 @@ namespace utf
     [[nodiscard]]
     auto get (std::istream& in) -> string::char_type
     {
-        std::remove_pointer<string::pointer>::type code[4] {};
+        uint8_t code[4] {};
 
         code[0] = in.get(); if (!in) return 0;
 
@@ -2905,7 +2992,7 @@ namespace utf
     */
     auto put (std::ostream& out, string::char_type value) -> void
     {
-        std::remove_pointer<string::pointer>::type code[5] {};
+        uint8_t code[5] {};
         string::_encode(code, value);
 
         out << code;
@@ -2924,7 +3011,7 @@ namespace utf
         auto tmp_size = to.size();
         to._end = to.bytes();
 
-        for (auto ch = get(is); is && !isspace(ch); ch = get(is))
+        for (auto ch = get(is); is && !is_space(ch); ch = get(is))
         {
             // Reuse available memory to avoid reallocation
             if (to.size() + string::_codebytes(ch) <= tmp_size)
