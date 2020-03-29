@@ -3,6 +3,10 @@
 // Copyright © 2020 Alex Qzminsky.
 // License: MIT. All rights reserved.
 
+/// \author https://github.com/qzminsky
+/// \version 0.8.10
+/// \date 2020/03/28
+
 #ifndef UTF8CPP_H
 #define UTF8CPP_H
 
@@ -28,15 +32,6 @@ static_assert(__cplusplus >= 201700L, "C++17 or higher is required");
 #   include <concepts>
 #endif
 
-/**
- * \namespace utf
- * 
- * \brief utf8cpp library source
- * \author qzminsky
- * 
- * \version 0.8.9
- * \date 2020/03/27
-*/
 namespace utf
 {
     // SECTION Exceptions classes
@@ -93,14 +88,14 @@ namespace utf
 
     private:
 
-        /*            size() == end_bytes() - bytes()
-         *  ╭—————————˄——————————╮
-         * [x xx x xx xxx x xxxx x].  -- data
+        /*         size() == end_bytes() - bytes()    capacity() == _myend - bytes()
+         *  ╭—————————˄——————————╮                    /
+         * [x xx x xx xxx x xxxx x]..................⇤ _myend      -- data
          *  ↑                      ↑
-         *  _repr == bytes()       _end == end_bytes()
+         *  _myfirst == bytes()    _mylast == end_bytes()
         */
 
-        pointer _repr = nullptr, _end = nullptr;
+        pointer _myfirst = nullptr, _mylast = nullptr, _myend = nullptr;
 
     public:
 
@@ -249,6 +244,8 @@ namespace utf
                 */
                 auto operator ++ () -> iterator&
                 {
+                    _confirm_op("Unable to increase unbound iterator");
+
                     return _parent->is_forward() ? _forward_increase() : _forward_decrease();
                 }
 
@@ -261,6 +258,8 @@ namespace utf
                 */
                 auto operator -- () -> iterator&
                 {
+                    _confirm_op("Unable to decrease unbound iterator");
+
                     return _parent->is_forward() ? _forward_decrease() : _forward_increase();
                 }
 
@@ -271,7 +270,11 @@ namespace utf
                  * 
                  * \throw bad_operation
                 */
+#if __cplusplus >= 202000L
+                [[nodiscard("More optimal is using of the prefix increment")]]
+#else
                 [[nodiscard]]
+#endif
                 auto operator ++ (int) -> iterator
                 {
                     auto tmp = *this; ++*this;
@@ -285,7 +288,11 @@ namespace utf
                  * 
                  * \throw bad_operation
                 */
+#if __cplusplus >= 202000L
+                [[nodiscard("More optimal is using of the prefix decrement")]]
+#else
                 [[nodiscard]]
+#endif
                 auto operator -- (int) -> iterator
                 {
                     auto tmp = *this; --*this;
@@ -443,6 +450,8 @@ namespace utf
                 [[nodiscard]]
                 auto as_index () const -> difference_type
                 {
+                    _confirm_op("Unable to calculate unbound iterator's index");
+
                     return *this - _parent->begin();
                 }
 
@@ -459,6 +468,8 @@ namespace utf
                 [[nodiscard]]
                 auto as_forward_index () const -> difference_type
                 {
+                    _confirm_op("Unable to calculate unbound iterator's index");
+                    
                     return *this - _parent->forward().begin();
                 }
 
@@ -475,6 +486,8 @@ namespace utf
                 [[nodiscard]]
                 auto as_backward_index () const -> difference_type
                 {
+                    _confirm_op("Unable to calculate unbound iterator's index");
+                    
                     return *this - _parent->backward().begin();
                 }
 
@@ -954,7 +967,7 @@ namespace utf
             /**
              * \brief Returns a vector of the iterators pointing to the every occurence of the characters
              * 
-             * \param ch Character to search
+             * \param ucode Character to search
              * \param pack Other characters to search
              * 
              * \throw unicode_error
@@ -967,7 +980,7 @@ namespace utf
             >
 #endif
             [[nodiscard]]
-            auto matches (char_type ch, Char... pack) const -> std::vector<iterator>
+            auto matches (char_type ucode, Char... pack) const -> std::vector<iterator>
             {
                 std::vector<iterator> res;
 
@@ -981,7 +994,7 @@ namespace utf
                 // Folding comparison with all of the characters in the pack
                 for (auto it = begin(); !! it; ++it)
                 {
-                    if (_equal(*it, ch) || (_equal(*it, pack) || ...)) res.push_back(it);
+                    if (_equal(*it, ucode) || (_equal(*it, pack) || ...)) res.push_back(it);
                 }
                 return res;
             }
@@ -1059,7 +1072,7 @@ namespace utf
             /**
              * \brief Search for the character in the view by its codepoint
              * 
-             * \param ch First character to search
+             * \param ucode First character to search
              * \param pack Other characters to count
              * 
              * \return Iterator to the first occurence of any character from the pack
@@ -1074,7 +1087,7 @@ namespace utf
             >
 #endif
             [[nodiscard]]
-            auto find (char_type ch, Char... pack) const -> iterator
+            auto find (char_type ucode, Char... pack) const -> iterator
             {
                 // Single character comparer
                 auto _equal = [] (char_type a, char_type b)
@@ -1088,7 +1101,7 @@ namespace utf
                 (
                     [&] (char_type cmp)
                     {
-                        return _equal(cmp, ch) || (_equal(cmp, pack) || ...);
+                        return _equal(cmp, ucode) || (_equal(cmp, pack) || ...);
                     }
                 );
             }
@@ -1162,7 +1175,7 @@ namespace utf
              * \brief Predicate. Returns `trie` if the view contains at least single specified
              * substring from the presented list
              * 
-             * \param value First substring to search
+             * \param vi First substring to search
              * \param pack Other substrings to search
             */
 #if __cplusplus >= 202000L
@@ -1200,7 +1213,7 @@ namespace utf
              * \brief Predicate. Returns `trie` if the view contains at least single specified
              * character from the presented list
              * 
-             * \param ch First character to search
+             * \param ucode First character to search
              * \param pack Other characters to search
              * 
              * \throw unicode_error
@@ -1213,9 +1226,9 @@ namespace utf
             >
 #endif
             [[nodiscard]]
-            auto contains (char_type ch, Char... pack) const -> bool
+            auto contains (char_type ucode, Char... pack) const -> bool
             {
-                return !! find(ch, pack...);
+                return !! find(ucode, pack...);
             }
 
             /**
@@ -1282,7 +1295,7 @@ namespace utf
             /**
              * \brief Counts the number of occurences of all characters in the pack
              * 
-             * \param ch First character to count
+             * \param ucode First character to count
              * \param pack Other characters to count
              * 
              * \return Summary number of occurences
@@ -1297,7 +1310,7 @@ namespace utf
             >
 #endif
             [[nodiscard]]
-            auto count (char_type ch, Char... pack) const -> size_type
+            auto count (char_type ucode, Char... pack) const -> size_type
             {
                 // Single character comparer
                 auto _equal = [] (char_type a, char_type b)
@@ -1311,7 +1324,7 @@ namespace utf
                 (
                     [&] (char_type cmp)
                     {
-                        return _equal(cmp, ch) || (_equal(cmp, pack) || ...);
+                        return _equal(cmp, ucode) || (_equal(cmp, pack) || ...);
                     }
                 );
             }
@@ -1434,9 +1447,9 @@ namespace utf
             [[nodiscard]]
             auto is_valid () const noexcept -> bool
             {
-                for (auto ch = bytes(); ch != bytes_end(); ++ch)
+                for (auto ptr = bytes(); ptr != bytes_end(); ++ptr)
                 {
-                    if (!_is_valid_utf(ch)) return false;
+                    if (!_is_valid_utf(ptr)) return false;
                 }
                 return true;
             }
@@ -1555,26 +1568,28 @@ namespace utf
          * \param other String to move from
         */
         string (string&& other) noexcept
-            : _repr{ std::exchange(other._repr, nullptr) }
-            , _end{ std::exchange(other._end, nullptr) }
+            : _myfirst{ std::exchange(other._myfirst, nullptr) }
+            , _mylast{ std::exchange(other._mylast, nullptr) }
+            , _myend{ std::exchange(other._myend, nullptr) }
         {}
 
         /**
          * \brief Filling constructor
          * 
-         * \param value Character's codepoint
+         * \param ucode Duplicating character
          * \param count Number of character's copies
         */
-        string (char_type value, size_type count)
+        string (char_type ucode, size_type count)
         {
-            auto bufsize = _codebytes(value) * count;
+            auto bufsize = _codebytes(ucode) * count;
 
-            _repr = new uint8_t[bufsize];
-            _end = bytes() + bufsize;
+            _myfirst = new uint8_t[bufsize];
+            _mylast =
+            _myend = bytes() + bufsize;
 
             for (pointer ptr = bytes(); count--;)
             {
-                ptr = _encode(ptr, value);
+                ptr = _encode(ptr, ucode);
             }
         }
 
@@ -1598,16 +1613,17 @@ namespace utf
             );
 
             // Span initialization
-            tmp._repr = new uint8_t[size];
-            tmp._end = tmp.bytes() + size;
+            tmp._myfirst = new uint8_t[size];
+            tmp._mylast =
+            tmp._myend = tmp.bytes() + size;
 
             // Encoding into UTF-8
             auto dit = tmp.bytes();
             
-            for (auto ch : data)
+            for (auto ucode : data)
             {
-                _validate_char(ch, "Source array contains a character with invalid codepoint");
-                dit = _encode(dit, ch);
+                _validate_char(ucode, "Source array contains a character with invalid codepoint");
+                dit = _encode(dit, ucode);
             }
 
             return tmp;
@@ -1659,13 +1675,14 @@ namespace utf
          * 
          * \param vi View providing the set of characters to copy
         */
-        string (view const& vi) : _repr{ new uint8_t[vi.size()] }
+        string (view const& vi) : _myfirst{ new uint8_t[vi.size()] }
         {
-            _end = bytes() + vi.size(); auto ptr = bytes();
+            _mylast =
+            _myend = bytes() + vi.size(); auto ptr = bytes();
 
             // Using for-cycle to construct from reversed views
-            for (auto ch : vi) {
-                ptr = _encode(ptr, ch);
+            for (auto ucode : vi) {
+                ptr = _encode(ptr, ucode);
             }
         }
 
@@ -1696,8 +1713,9 @@ namespace utf
         {
             if (this != &other)
             {
-                _repr = std::exchange(other._repr, nullptr);
-                _end = std::exchange(other._end, nullptr);
+                _myfirst = std::exchange(other._myfirst, nullptr);
+                _mylast = std::exchange(other._mylast, nullptr);
+                _myend = std::exchange(other._myend, nullptr);
             }
             return *this;
         }
@@ -1802,7 +1820,7 @@ namespace utf
         [[nodiscard]]
         auto bytes () const noexcept -> pointer
         {
-            return _repr;
+            return _myfirst;
         }
 
         /**
@@ -1811,7 +1829,7 @@ namespace utf
         [[nodiscard]]
         auto bytes_end () const noexcept -> pointer
         {
-            return _end;
+            return _mylast;
         }
 
         /**
@@ -1831,9 +1849,9 @@ namespace utf
         {
             std::vector<char_type> tmp;
 
-            auto vi = chars(); for (auto ch : vi)
+            auto vi = chars(); for (auto ucode : vi)
             {
-                tmp.push_back(ch);
+                tmp.push_back(ucode);
             }
             return tmp;
         }
@@ -1992,32 +2010,61 @@ namespace utf
         }
 
         /**
+         * \brief Returns the full size of the allocated buffer's memory
+        */
+        [[nodiscard]]
+        auto capacity () const noexcept -> size_type
+        {
+            return _myend - bytes();
+        }
+
+        /**
+         * \brief Checks the current capacity of the string and reallocates if it's less than ordered
+         * 
+         * \return Reference to the string
+        */
+        auto reserve (size_type new_cap) noexcept -> string&
+        {
+            if (new_cap > capacity())
+            {
+                auto tmp = bytes();
+
+                _myfirst = new uint8_t[new_cap];
+                _myend = bytes() + new_cap;
+
+                _bufinit((void*)tmp, _mylast - tmp);
+                delete[] tmp;
+            }
+            return *this;
+        }
+
+        /**
          * \brief Appends a given Unicode character to the end of the string
          *
-         * \param ch Codepoint of appending character
+         * \param ucode Appending character
          *
          * \return Reference to the modified string
          * 
          * \throw unicode_error
         */
-        auto push (char_type ch) -> string&
+        auto push (char_type ucode) -> string&
         {
-            _validate_char(ch, "Pushing an invalid Unicode character");
-            _encode(_expanded_copy(size() + _codebytes(ch)), ch);
+            _validate_char(ucode, "Pushing an invalid Unicode character");
+            _encode(_expand(size() + _codebytes(ucode)), ucode);
 
             return *this;
         }
 
         /**
-         * \brief Appends a given view to the end of current string
+         * \brief Appends a given substring to the end of current string
          *
-         * \param other Appending view
+         * \param vi Appending view
          *
          * \return Reference to the modified string
         */
         auto push (view const& vi) -> string&
         {
-            std::copy_n(vi.bytes(), vi.size(), _expanded_copy(size() + vi.size()));
+            std::copy_n(vi.bytes(), vi.size(), _expand(size() + vi.size()));
 
             return *this;
         }
@@ -2032,7 +2079,7 @@ namespace utf
             if (is_empty()) throw underflow_error{ "Pop from empty string" };
 
             auto it = chars().reverse().begin();
-            _end = it._base();
+            _mylast = it._base();
 
             return *it;
         }
@@ -2041,20 +2088,20 @@ namespace utf
          * \brief Inserts the Unicode character into the string
          *
          * \param pos Inserting position
-         * \param value Unicode character's codepoint
+         * \param ucode Unicode character to insert
          *
          * \return Reference to the modified string
          * 
          * \throw invalid_argument
          * \throw unicode_error
         */
-        auto insert (size_type pos, char_type value) -> string&
+        auto insert (size_type pos, char_type ucode) -> string&
         {
-            _validate_char(value, "Invalid Unicode character insertion");
+            _validate_char(ucode, "Invalid Unicode character insertion");
 
             if (pos < 0) throw invalid_argument{ "Negative inserting position" };
 
-            _encode(_spread((chars().begin() + pos)._base(), size() + _codebytes(value)), value);
+            _encode(_spread((chars().begin() + pos)._base(), size() + _codebytes(ucode)), ucode);
             return *this;
         }
 
@@ -2062,23 +2109,23 @@ namespace utf
          * \brief Inserts the Unicode character into the string
          *
          * \param iter Inserting position (by iterator)
-         * \param value Unicode character's codepoint
+         * \param ucode Unicode character to insert
          *
          * \return Reference to the modified string
          * 
          * \throw out_of_range
          * \throw unicode_error
         */
-        auto insert (view::iterator const& iter, char_type value) -> string&
+        auto insert (view::iterator const& iter, char_type ucode) -> string&
         {
-            _validate_char(value, "Invalid Unicode character insertion");
+            _validate_char(ucode, "Invalid Unicode character insertion");
 
             if (auto ptr = iter._base(); _range_check(ptr))
             {
                 throw out_of_range{ "Given iterator does not point into modifying string" };
             }
             else {
-                _encode(_spread(ptr, size() + _codebytes(value)), value);
+                _encode(_spread(ptr, size() + _codebytes(ucode)), ucode);
             }
             return *this;
         }
@@ -2152,7 +2199,7 @@ namespace utf
          * \brief Replaces all characters satisfying specified criteria by another
          * 
          * \param pred Checking predicate
-         * \param value Replacing character's codepoint
+         * \param ucode Replacing character
          * 
          * \return Reference to the modified string
          * 
@@ -2165,15 +2212,15 @@ namespace utf
                   typename = std::enable_if_t<std::is_invocable_v<Functor, char_type>>
         >
 #endif
-        auto replace_all_if (Functor&& pred, char_type value) -> string&
+        auto replace_all_if (Functor&& pred, char_type ucode) -> string&
         {
-            _validate_char(value, "Replacing by an invalid Unicode character");
+            _validate_char(ucode, "Replacing by an invalid Unicode character");
 
-            for (auto chs = chars();; chs = chars())
+            for (auto _chars = chars();; _chars = chars())
             {
-                if (auto it = chs.find_if(std::forward<Functor>(pred)); !! it)
+                if (auto it = _chars.find_if(std::forward<Functor>(pred)); !! it)
                 {
-                    replace(it, from_unicode({ value }));
+                    replace(it, from_unicode({ ucode }));
                 }
                 else break;
             }
@@ -2184,19 +2231,19 @@ namespace utf
          * \brief Replaces all occurences of the given character by another
          * 
          * \param what Character to replace
-         * \param value Replacing character's codepoint
+         * \param ucode Replacing character
          * 
          * \return Reference to the modified string
          * 
          * \throw unicode_error
         */
-        auto replace_all (char_type what, char_type value) -> string&
+        auto replace_all (char_type what, char_type ucode) -> string&
         {
             _validate_char(what, "Replacing an invalid Unicode character");
 
             return replace_all_if(
                 [&what] (char_type ch) { return ch == what; },
-                value
+                ucode
             );
         }
 
@@ -2208,7 +2255,7 @@ namespace utf
         auto clear () noexcept -> string&
         {
             delete[] bytes();
-            _repr = _end = nullptr;
+            _myfirst = _mylast = _myend = nullptr;
 
             return *this;
         }
@@ -2232,7 +2279,7 @@ namespace utf
                 auto sz = _charsize(ptr);
                 std::copy(ptr + sz, bytes_end(), ptr);
 
-                _end -= sz;
+                _mylast -= sz;
             }
             return *this;
         }
@@ -2257,7 +2304,7 @@ namespace utf
             }
             else {
                 std::copy(vi_en, bytes_end(), vi_be);
-                _end -= vi.size();
+                _mylast -= vi.size();
             }
             return *this;
         }
@@ -2319,7 +2366,7 @@ namespace utf
         /**
          * \brief Removes all occurrences of the characters in the string
          * 
-         * \param ch First character to remove
+         * \param ucode First character to remove
          * \param pack Other characters to remove
          * 
          * \return Reference to the modified string
@@ -2333,7 +2380,7 @@ namespace utf
                   typename = std::enable_if_t<std::conjunction_v<std::is_convertible<Char, char_type>...>>
         >
 #endif
-        auto remove (char_type ch, Char... pack) -> string&
+        auto remove (char_type ucode, Char... pack) -> string&
         {
             // Single character comparer
             auto _equal = [] (char_type a, char_type b)
@@ -2347,7 +2394,7 @@ namespace utf
             (
                 [&] (char_type cmp)
                 {
-                    return _equal(cmp, ch) || (_equal(cmp, pack) || ...);
+                    return _equal(cmp, ucode) || (_equal(cmp, pack) || ...);
                 }
             );
         }
@@ -2410,7 +2457,7 @@ namespace utf
             if (rsize > osize)
             {
                 std::copy(tail, bytes_end(), ptrpos + osize);
-                _end -= rsize - osize;
+                _mylast -= rsize - osize;
             }
             /*     pos     N           bytes_end()
              *        \╭———˄——╮        ↓
@@ -2489,7 +2536,17 @@ namespace utf
         */
         auto shrink_to_fit () -> string&
         {
-            _expanded_copy(size());
+            auto copy_bytes = size();
+
+            auto tmp = new uint8_t[copy_bytes];
+            std::copy_n(bytes(), copy_bytes, tmp);
+
+            delete[] bytes();
+
+            _myfirst = tmp;
+            _mylast =
+            _myend = bytes() + copy_bytes;
+
             return *this;
         }
 
@@ -2541,18 +2598,18 @@ namespace utf
         /**
          * \brief Removes all of the given characters from both sides of the string
          * 
-         * \param value Character to trim (by its codepoint)
+         * \param ucode Unicode character to trim
          * 
          * \return Reference to the modified string
          * 
          * \throw unicode_error
         */
-        auto trim (char_type value) -> string&
+        auto trim (char_type ucode) -> string&
         {
-            _validate_char(value, "Trimming an invalid Unicode character");
+            _validate_char(ucode, "Trimming an invalid Unicode character");
 
             return trim_if(
-                [&value] (char_type ch) { return value == ch; }
+                [&ucode] (char_type ch) { return ch == ucode; }
             );
         }
 
@@ -2614,8 +2671,9 @@ namespace utf
         */
         auto swap (string& other) noexcept -> void
         {
-            std::swap(_repr, other._repr);
-            std::swap(_end, other._end);
+            std::swap(_myfirst, other._myfirst);
+            std::swap(_mylast, other._mylast);
+            std::swap(_myend, other._myend);
         }
 
     private:
@@ -2631,16 +2689,17 @@ namespace utf
          * \details The new buffer has an extra space after the original content
          * \warning New buffer size must be at least equal to old. Otherwise, it will cause the UB
         */
-        auto _expanded_copy (size_type new_size) -> pointer
+        auto _expand (size_type new_size) -> pointer
         {
-            auto tmp = new uint8_t[new_size]; auto copy_bytes = size();
+            auto old_size = size();
 
-            std::copy_n(bytes(), copy_bytes, tmp);
-            delete[] bytes();
+            if (new_size > capacity())
+            {
+                reserve(std::max(capacity() * 3 / 2, new_size));
+            }
+            _mylast = bytes() + new_size;
 
-            _repr = tmp; _end = bytes() + new_size;
-
-            return bytes() + copy_bytes;
+            return bytes() + old_size;
 
             /*   new_size       returning pointer
              *  ╭———˄—————————— ↓ —————╮
@@ -2652,7 +2711,7 @@ namespace utf
 
         /**
          * \internal
-         * \brief Reallocates the memory buffer
+         * \brief Shifts the buffer's tail to the end of specified volume
          *
          * \param where Pointer to the splitting position
          * \param new_size Expanded size of memory buffer
@@ -2664,7 +2723,7 @@ namespace utf
         auto _spread (pointer where, size_type new_size) -> pointer
         {
             auto shift = where - bytes();
-            auto tail = _expanded_copy(new_size);
+            auto tail = _expand(new_size);
 
             where = bytes() + shift;
             std::copy_backward(where, tail, bytes_end());
@@ -2688,21 +2747,23 @@ namespace utf
          * \brief Reallocates the memory buffer and fills it with the given contents
          *
          * \param buf Pointer to the initialization buffer
-         * \param bufsize New buffer size
+         * \param count Number of bytes to copy from init-buffer
          * 
-         * \details In fact, reallocation occurs only if `bufsize` exceeds the actual buffer size
+         * \details In fact, reallocation occurs only if `bufsize` exceeds the actual buffer capacity
         */
-        auto _bufinit (void* buf, size_type bufsize) -> void
+        auto _bufinit (void* buf, size_type count) -> void
         {
             // Reallocate only if there is not enough memory
-            if (bufsize > size())
+            if (count > capacity())
             {
                 delete[] bytes();
-                _repr = new uint8_t[bufsize];
+
+                _myfirst = new uint8_t[count];
+                _myend = bytes() + count;
             }
             
-            _end = bytes() + bufsize;
-            std::copy_n((char*)buf, bufsize, bytes());
+            _mylast = bytes() + count;
+            std::copy_n((char*)buf, count, bytes());
         }
 
         /**
@@ -2767,16 +2828,16 @@ namespace utf
          * \internal
          * \brief Counts the bytes to store the encoded UTF-8 character by its codepoint
          * 
-         * \param value Character's codepoint
+         * \param ucode Unicode character
          * 
          * \return Number of bytes
         */
         [[nodiscard]]
-        static auto _codebytes (char_type value) noexcept -> size_type
+        static auto _codebytes (char_type ucode) noexcept -> size_type
         {
-            if (value < 0x80) return 1;
-            else if (value < 0x800) return 2;
-            else if (value < 0x10000) return 3;
+            if (ucode < 0x80) return 1;
+            else if (ucode < 0x800) return 2;
+            else if (ucode < 0x10000) return 3;
             return 4;
         }
 
@@ -2796,40 +2857,40 @@ namespace utf
          * \internal
          * \brief Provokes a `unicode_error` exception throwing in case of invalid character's codepoint
          * 
-         * \param value Character to check (by its codepoint)
+         * \param ucode Checking Unicode character
          * \param exception_msg Message into exception object
          * 
          * \throw unicode_error
         */
-        static auto _validate_char (char_type value, const char* exception_msg) -> void
+        static auto _validate_char (char_type ucode, const char* exception_msg) -> void
         {
-            if (!_is_valid(value)) throw unicode_error{ exception_msg };
+            if (!_is_valid(ucode)) throw unicode_error{ exception_msg };
         }
 
         /**
          * \internal
          * \brief Predicate. Returns `true` if the character is ASCII-valid
          * 
-         * \param ch Character's codepoint
+         * \param ucode Unicode character
          *
          * \note ASCII-subset of Unicode is presented by codepoints 0-127 (`0x00`-`0x7F`)
         */
         [[nodiscard]]
-        static constexpr auto _is_ascii (char_type ch) noexcept -> bool
+        static constexpr auto _is_ascii (char_type ucode) noexcept -> bool
         {
-            return ch < 0x80;
+            return ucode < 0x80;
         }
 
         /**
          * \internal
          * \brief Predicate. Returns `true` if the character is Unicode-valid
          * 
-         * \param ch Character's codepoint
+         * \param ucode Unicode character
         */
         [[nodiscard]]
-        static constexpr auto _is_valid (char_type ch) noexcept -> bool
+        static constexpr auto _is_valid (char_type ucode) noexcept -> bool
         {
-            return ch <= 0x10FFFF;
+            return ucode <= 0x10FFFF;
         }
 
         /**
@@ -2837,50 +2898,50 @@ namespace utf
          * \brief Encodes an UTF-8 character
          * 
          * \param dest Destination pointer to the UTF-8 location inside the buffer
-         * \param value Character's codepoint
+         * \param ucode Unicode character to encode
          * 
          * \return Pointer to the following byte
         */
-        static auto _encode (pointer dest, char_type value) noexcept -> pointer
+        static auto _encode (pointer dest, char_type ucode) noexcept -> pointer
         {
             if (!dest) return nullptr;
 
             // One-byted subset [0; 127]
-            if (value < 0x80)
+            if (ucode < 0x80)
             {
-                *dest = value; return ++dest;
+                *dest = ucode; return ++dest;
             }
 
             // Multibyte characters representation
             else {
-                auto size = _codebytes(value), tmp = size;
+                auto size = _codebytes(ucode), tmp = size;
                 uint8_t mask = 0x80;
 
                 while (--size)
                 {
-                    *(dest + size) = (value & 0x3F) | 0x80;
-                    value >>= 6; mask >>= 1; mask |= 0x80;
+                    *(dest + size) = (ucode & 0x3F) | 0x80;
+                    ucode >>= 6; mask >>= 1; mask |= 0x80;
                 }
 
-                *dest = (value & 0x07) | mask;
+                *dest = (ucode & 0x07) | mask;
 
                 return dest + tmp;
             }
 
             /*                               dest  single  returning pointer
-             * value ∈ [0; 0x7F]           ⇒     \╭———˄——╮ ↓
+             * ucode ∈ [0; 0x7F]           ⇒     \╭———˄——╮ ↓
              *                               [... 0_______ ...]
              * 
              *                               dest       pair        returning pointer
-             * value ∈ [0x80; 0x7FF]       ⇒     \╭———————˄———————╮ ↓
+             * ucode ∈ [0x80; 0x7FF]       ⇒     \╭———————˄———————╮ ↓
              *                               [... 110_____ 10______ ...]
              * 
              *                               dest     3-bytes encoding       returning pointer
-             * value ∈ [0x800; 0xFFFF]     ⇒     \╭————————————˄———————————╮ ↓
+             * ucode ∈ [0x800; 0xFFFF]     ⇒     \╭————————————˄———————————╮ ↓
              *                               [... 1110____ 10______ 10______ ...]
              * 
              *                               dest         4-bytes encoding            returning pointer
-             * value ∈ [0x10000; 0x10FFFF] ⇒     \╭————————————————˄————————————————╮ ↓
+             * ucode ∈ [0x10000; 0x10FFFF] ⇒     \╭————————————————˄————————————————╮ ↓
              *                               [... 11110___ 10______ 10______ 10______ ...]
             */
         }
@@ -2889,19 +2950,19 @@ namespace utf
          * \internal
          * \brief Predicate. Returns `true` if a character is space-qualified
          * 
-         * \param value Checking character's codepoint
+         * \param ucode Checking Unicode character
          * 
          * \note Unlike `std::isspace`, this function also matches the Unicode spaces
         */
         [[nodiscard]]
-        static auto _is_space (char_type value) noexcept -> bool
+        static auto _is_space (char_type ucode) noexcept -> bool
         {
-            auto _is_any = [value] (auto... lst) -> bool
+            auto _is_any = [ucode] (auto... lst) -> bool
             {
-                return ((value == (char_type)lst) || ...);
+                return ((ucode == (char_type)lst) || ...);
             };
 
-            return std::isspace(value) || _is_any
+            return std::isspace(ucode) || _is_any
             (
                 0xA0, 0x1680, 0x180E,
                 0x2000, 0x2001, 0x2002, 0x2003,
@@ -2928,38 +2989,38 @@ namespace utf
     /**
      * \brief Predicate. Returns `true` if a character is space-qualified
      * 
-     * \param value Checking character's codepoint
+     * \param ucode Checking Unicode character
      * 
      * \note Unlike `std::isspace`, this function also matches the Unicode spaces
     */
     [[nodiscard]]
-    auto is_space (string::char_type value) noexcept -> bool
+    auto is_space (string::char_type ucode) noexcept -> bool
     {
-        return string::_is_space(value);
+        return string::_is_space(ucode);
     }
 
     /**
      * \brief Predicate. Returns `true` if the character is ASCII-valid
      * 
-     * \param ch Character's codepoint
+     * \param ucode Checking Unicode character
      *
      * \note ASCII-subset of Unicode is presented by codepoints 0-127 (`0x00`-`0x7F`)
     */
     [[nodiscard]]
-    constexpr auto is_ascii (string::char_type ch) noexcept -> bool
+    constexpr auto is_ascii (string::char_type ucode) noexcept -> bool
     {
-        return string::_is_ascii(ch);
+        return string::_is_ascii(ucode);
     }
 
     /**
      * \brief Predicate. Returns `true` if the character is Unicode-valid
      * 
-     * \param ch Character's codepoint
+     * \param ucode Checking Unicode character
     */
     [[nodiscard]]
-    constexpr auto is_valid (string::char_type ch) noexcept -> bool
+    constexpr auto is_valid (string::char_type ucode) noexcept -> bool
     {
-        return string::_is_valid(ch);
+        return string::_is_valid(ucode);
     }
 
     // ANCHOR Char-by-char i/o
@@ -2988,12 +3049,12 @@ namespace utf
      * \brief Writes an UTF-8 character into an output stream
      * 
      * \param out Output stream to write into
-     * \param value Character's codepoint
+     * \param ucode Unicode character
     */
-    auto put (std::ostream& out, string::char_type value) -> void
+    auto put (std::ostream& out, string::char_type ucode) -> void
     {
         uint8_t code[5] {};
-        string::_encode(code, value);
+        string::_encode(code, ucode);
 
         out << code;
     }
@@ -3008,15 +3069,14 @@ namespace utf
     */
     auto operator >> (std::istream& is, string& to) -> std::istream&
     {
-        auto tmp_size = to.size();
-        to._end = to.bytes();
+        to._mylast = to.bytes();
 
         for (auto ch = get(is); is && !is_space(ch); ch = get(is))
         {
             // Reuse available memory to avoid reallocation
-            if (to.size() + string::_codebytes(ch) <= tmp_size)
+            if (to.size() + string::_codebytes(ch) <= to.capacity())
             {
-                to._end = string::_encode(to.bytes_end(), ch);
+                to._mylast = string::_encode(to.bytes_end(), ch);
             }
             else to.push(ch);
         }
@@ -3033,9 +3093,9 @@ namespace utf
     */
     auto operator << (std::ostream& os, string_view const& vi) -> std::ostream&
     {
-        for (auto ch : vi)
+        for (auto ucode : vi)
         {
-            put(os, ch);
+            put(os, ucode);
         }
         return os;
     }
