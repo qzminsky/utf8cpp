@@ -18,13 +18,14 @@ The class `utf::string` describes a dynamically, array-based, contiguous storage
 * ...and rights to view and change are completely divided between `string`s and `view`s by design!
 
 ### Installation
-1. ![download-solid](https://user-images.githubusercontent.com/54913619/76699933-4a559500-66c3-11ea-978a-48808ab0f852.png) [Download](https://github.com/qzminsky/utf8cpp/archive/v0.8.9.zip) the library source;
-2. `#include` the `string.h` file in your C++ project;
+1. ![download-solid](https://user-images.githubusercontent.com/54913619/76699933-4a559500-66c3-11ea-978a-48808ab0f852.png) [Download](https://github.com/qzminsky/utf8cpp/archive/v0.8.10.zip) the library source;
+2. `#include` the `utf8string.hpp` file in your C++ project;
 3. Enjoy!
 
 > ⚠️ *Note that the library requires C++17 support*
 
 ## Usage examples
+> *See more examples in the [`sample.cpp`](https://github.com/qzminsky/utf8cpp/blob/master/sample.cpp) source file*
 * Creating the string:
 ```C++
 // Constructing via const char*
