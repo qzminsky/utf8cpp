@@ -1,7 +1,9 @@
 // Copyright © 2020 Alex Qzminsky.
 // License: MIT. All rights reserved.
 
+#include <cstdint>
 #include <iostream>
+#include <limits>
 #include <stdexcept>
 
 #include "utf8string.hpp"
@@ -120,7 +122,7 @@ auto main() -> int
     assert_throws<utf::bad_operation>([&] { ++MyStr.chars().begin().free(); });
     //            ^^^^^^^^^^^^^^^^^^        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
     //                                      ↑                      ↑
-    //                                      │                      └➀ a free iterator...
+    //                                      │                      └➀ an unbound iterator...
     //                                      └➁ ...cannot be modified, dereferenced or compared
 
     // (*), (**), (***) -- Result discarding. 🛇 Do not repeat it at home.
@@ -156,7 +158,15 @@ auto main() -> int
 
     ///////////////////////////////////////////////////////////////////////////////////////////////
 
+    // Numbers conversion sample
+    assert_eq(utf::to_string(0xdeadf00d, 16).to_upper_ascii(), "DEADF00D");
+    assert_eq(utf::to_string(std::numeric_limits<uint64_t>::max(), 2), utf::string('1', 64));
+    assert_eq(utf::to_string(std::numeric_limits<int64_t>::min()), "-9223372036854775808");
+    assert_eq(utf::to_string(2.718281828, 'f', 5), "2.71828");
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+    
     std::cout << "All is correct" << std::endl;
-	std::cin.get();
+    std::cin.get();
 }
 

@@ -4,8 +4,8 @@
 // License: MIT. All rights reserved.
 
 /// \author https://github.com/qzminsky
-/// \version 0.8.10
-/// \date 2020/03/28
+/// \version 0.8.11
+/// \date 2020/03/30
 
 #ifndef UTF8CPP_H
 #define UTF8CPP_H
@@ -14,15 +14,18 @@ static_assert(__cplusplus >= 201700L, "C++17 or higher is required");
 
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <initializer_list>
+#include <iomanip>
 #include <iostream>
 #include <iterator>
 #include <limits>
 #include <numeric>
 #include <set>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <type_traits>
@@ -487,7 +490,7 @@ namespace utf
                 auto as_backward_index () const -> difference_type
                 {
                     _confirm_op("Unable to calculate unbound iterator's index");
-                    
+
                     return *this - _parent->backward().begin();
                 }
 
@@ -3116,7 +3119,7 @@ namespace utf
     /**
      * \brief Converts the given number into the string according to the specified base
      * 
-     * \param number Input signed number
+     * \param number Input integral number
      * \param base Conversion base
      * 
      * \return String equivalent of `number`
@@ -3125,19 +3128,31 @@ namespace utf
      * 
      * \throw invalid_argument
     */
+#if __cplusplus >= 202000L
+    template <std::integral Integer>
+#else
+    template <typename Integer,
+              typename = std::enable_if_t<std::is_integral_v<Integer>>
+    >
+#endif
     [[nodiscard]]
-    auto to_string (uintmax_t number, int base = 10) -> string
+    auto to_string (Integer number, int base = 10) -> string
     {
         if (base < 2 || base > 36) throw invalid_argument{ "The base have to be between 2 and 36" };
 
         if (!number) return "0";
 
-        constexpr auto digits = std::numeric_limits<uintmax_t>::digits;
-        char buff[digits + 1] {}; auto p = buff + digits;
+        constexpr auto digits = std::numeric_limits<Integer>::digits;
+        bool is_negative = number < 0;
 
+        char buff[1 + digits + 1] {}; auto p = buff + digits + 1;
+        //        ↑            ↑                    ⇒        ⇒
+        //      sign     null-terminator      from base to the null-terminator
+
+        // Significants cast
         while (number != 0)
         {
-            if (int c = number % base; c < 10)
+            if (int c = std::fabs(number % base); c < 10)
                 *(--p) = '0' + c;
             else
                 *(--p) = c - 10 + 'a';
@@ -3145,29 +3160,43 @@ namespace utf
             number /= base;
         }
 
+        if (is_negative) *(--p) = '-';
+
         return p;
     }
 
     /**
-     * \brief Converts the given number into the string according to the specified base
+     * \brief Converts the given number into the string according to the specified format and precision
      * 
-     * \param number Input unsigned number
-     * \param base Conversion base
+     * \param number Input floating-point number
+     * \param format Representation format specifier (`e` or `f`)
+     * \param prec Number's precision
      * 
      * \return String equivalent of `number`
      * 
-     * \details The value of `base` must be in range [2; 36]. Otherwise, an exception will be thrown
-     * 
      * \throw invalid_argument
     */
+#if __cplusplus >= 202000L
+    template <std::floating_point Float>
+#else
+    template <typename Float,
+              typename = std::enable_if_t<std::is_floating_point_v<Float>>
+    >
+#endif
     [[nodiscard]]
-    auto to_string (intmax_t number, int base = 10) -> string
+    auto to_string (Float number, char format = 'e', unsigned prec = 6) -> string
     {
-        auto mstr = to_string((uintmax_t)std::abs(number), base);
+        std::ostringstream conv;
 
-        if (number < 0) mstr.insert(0, "-");
+        if (format == 'e') conv << std::scientific;
+        else if (format == 'f') conv << std::fixed;
+        else
+        {
+            throw invalid_argument{ "Unexpected format specifier" };
+        }
+        conv << std::setprecision(prec) << number;
 
-        return mstr;
+        return string::from_std_string(conv.str());
     }
 
 }   // end namespace utf
