@@ -3,9 +3,13 @@
 // Copyright © 2020 Alex Qzminsky.
 // License: MIT. All rights reserved.
 
+/// \brief Dynamic, contiguous storage of UTF-8-encoded characters set
+///
 /// \author https://github.com/qzminsky
-/// \version 0.8.11
-/// \date 2020/03/30
+/// \copyright https://github.com/qzminsky/utf8cpp/blob/master/LICENSE.md
+///
+/// \version 1.0.0
+/// \date 2020/04/06
 
 #ifndef UTF8CPP_H
 #define UTF8CPP_H
@@ -952,7 +956,7 @@ namespace utf
             template <std::predicate<char_type> Functor>
 #else
             template <typename Functor,
-                      typename = std::enable_if_t<std::is_invocable_v<Functor, char_type>>
+                      typename = std::enable_if_t<std::is_invocable_r_v<bool, Functor, char_type>>
             >
 #endif
             [[nodiscard]]
@@ -1059,7 +1063,7 @@ namespace utf
             template <std::predicate<char_type> Functor>
 #else
             template <typename Functor,
-                      typename = std::enable_if_t<std::is_invocable_v<Functor, char_type>>
+                      typename = std::enable_if_t<std::is_invocable_r_v<bool, Functor, char_type>>
             >
 #endif
             [[nodiscard]]
@@ -1203,7 +1207,7 @@ namespace utf
             template <std::predicate<char_type> Functor>
 #else
             template <typename Functor,
-                      typename = std::enable_if_t<std::is_invocable_v<Functor, char_type>>
+                      typename = std::enable_if_t<std::is_invocable_r_v<bool, Functor, char_type>>
             >
 #endif
             [[nodiscard]]
@@ -1280,7 +1284,7 @@ namespace utf
             template <std::predicate<char_type> Functor>
 #else
             template <typename Functor,
-                      typename = std::enable_if_t<std::is_invocable_v<Functor, char_type>>
+                      typename = std::enable_if_t<std::is_invocable_r_v<bool, Functor, char_type>>
             >
 #endif
             [[nodiscard]]
@@ -2212,7 +2216,7 @@ namespace utf
         template <std::predicate<char_type> Functor>
 #else
         template <typename Functor,
-                  typename = std::enable_if_t<std::is_invocable_v<Functor, char_type>>
+                  typename = std::enable_if_t<std::is_invocable_r_v<bool, Functor, char_type>>
         >
 #endif
         auto replace_all_if (Functor&& pred, char_type ucode) -> string&
@@ -2352,7 +2356,7 @@ namespace utf
         template <std::predicate<char_type> Functor>
 #else
         template <typename Functor,
-                  typename = std::enable_if_t<std::is_invocable_v<Functor, char_type>>
+                  typename = std::enable_if_t<std::is_invocable_r_v<bool, Functor, char_type>>
         >
 #endif
         auto remove_if (Functor&& pred) noexcept -> string&
@@ -2435,7 +2439,7 @@ namespace utf
          * \param vi View providing the range
          * \param other New substring
          *
-         * \return Reference to the modified string object
+         * \return Reference to the modified string
          * 
          * \throw out_of_range
         */
@@ -2488,7 +2492,7 @@ namespace utf
          * \param N Number of characters to replace
          * \param other New substring
          *
-         * \return Reference to the modified string object
+         * \return Reference to the modified string
          * 
          * \throw invalid_argument
          * \throw length_error
@@ -2499,37 +2503,61 @@ namespace utf
         }
 
         /**
-         * \brief Replaces all characters starting from given index by other string
+         * \brief Replaces a characters by another one
          *
          * \param pos Replacement position
-         * \param other New substring
+         * \param ucode New character
          *
-         * \return Reference to the modified string object
+         * \return Reference to the modified string
          * 
          * \throw invalid_argument
+         * \throw unicode_error
         */
-        auto replace (size_type pos, view const& other) -> string&
+        auto replace (size_type pos, char_type ucode) -> string&
         {
-            return replace(pos, npos, other);
+            if (pos < 0)
+            {
+                throw invalid_argument{ "Negative character index" };
+            }
+            return replace(chars().begin() + pos, ucode);
         }
 
         /**
-         * \brief Replaces a character (by its iterator) by a new substring
+         * \brief Replaces a character (by its iterator) by another one
          *
          * \param iter Replacement position (by an iterator)
-         * \param other New substring
+         * \param ucode New character
          *
-         * \return Reference to the modified string object
+         * \return Reference to the modified string
          * 
          * \throw out_of_range
+         * \throw unicode_error
         */
-        auto replace (view::iterator const& iter, view const& other) -> string&
+        auto replace (view::iterator const& iter, char_type ucode) -> string&
         {
-            if (_range_check(iter._base()))
+            _validate_char(ucode, "Replacing by an invalid Unicode character");
+
+            if (auto ptr = iter._base(); _range_check(ptr))
             {
                 throw out_of_range{ "Given iterator does not point into modifying string" };
             }
-            return replace(view{ iter }, other);
+            else
+            {
+                auto rsize = _charsize(ptr), osize = _codebytes(ucode);
+
+                if (rsize > osize)
+                {
+                    std::copy(ptr + rsize, bytes_end(), ptr + osize);
+                    _mylast -= rsize - osize;
+                }
+                else if (rsize < osize)
+                {
+                    ptr = _spread(ptr, size() + osize - rsize);
+                }
+
+                _encode(ptr, ucode);
+            }
+            return *this;
         }
 
         /**
@@ -2560,6 +2588,8 @@ namespace utf
          *
          * \return Right side of original string, length (`length() - pos`).
          * If `pos >= length()`, returns an empty string
+         * 
+         * \throw invalid_argument
         */
         auto split_off (size_type pos) -> string
         {
@@ -2580,7 +2610,7 @@ namespace utf
         template <std::predicate<char_type> Functor>
 #else
         template <typename Functor,
-                  typename = std::enable_if_t<std::is_invocable_v<Functor, char_type>>
+                  typename = std::enable_if_t<std::is_invocable_r_v<bool, Functor, char_type>>
         >
 #endif
         auto trim_if (Functor&& pred) -> string&
@@ -2599,7 +2629,7 @@ namespace utf
         }
 
         /**
-         * \brief Removes all of the given characters from both sides of the string
+         * \brief Removes all occurrences of the given character from both sides of the string
          * 
          * \param ucode Unicode character to trim
          * 

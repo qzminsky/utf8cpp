@@ -8,7 +8,7 @@
 
 #include "utf8string.hpp"
 
-/// Unresolved modifying of an iterator
+/// Bad assertions exception class
 struct assertion_failure : std::logic_error
 {
     explicit assertion_failure (const char* msg)
@@ -57,7 +57,7 @@ auto assert_throws (Functor&& expr) -> void
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * \brief The entry point
+ * \brief Entry point
 */
 auto main() -> int
 {
@@ -123,7 +123,7 @@ auto main() -> int
     //            ^^^^^^^^^^^^^^^^^^        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
     //                                      ↑                      ↑
     //                                      │                      └➀ an unbound iterator...
-    //                                      └➁ ...cannot be modified, dereferenced or compared
+    //                                      └➁ ...cannot be modified or compared
 
     // (*), (**), (***) -- Result discarding. 🛇 Do not repeat it at home.
 
@@ -148,10 +148,9 @@ auto main() -> int
     );
 
     MyStr = "One Hagrid $s";
-    //                        single replacement is available only by substring now, even for a character 🙁
-    assert_eq(  //                             ╭————————————————˄————————————————╮
-        MyStr.replace(MyStr.chars().find('$'), utf::string::from_unicode({ 0xA5 })),
-        //      ⇓
+    assert_eq(
+        MyStr.replace(MyStr.chars().find('$'), 0xA5),   //              UTF-8 of '¥' (codepoint 0xA5)
+        //      ⇓                                                                   ╭———˄———╮
         utf::string::from_bytes({ 79, 110, 101, 32, 72, 97, 103, 114, 105, 100, 32, 194, 165, 115 })
         // == "One Hagrid ¥s"
     );
@@ -160,7 +159,7 @@ auto main() -> int
 
     // Numbers conversion sample
     assert_eq(utf::to_string(0xdeadf00d, 16).to_upper_ascii(), "DEADF00D");
-    assert_eq(utf::to_string(std::numeric_limits<uint64_t>::max(), 2), utf::string('1', 64));
+    assert_eq(utf::to_string(std::numeric_limits<uint64_t>::max(), 2), utf::string { '1', 64 });
     assert_eq(utf::to_string(std::numeric_limits<int64_t>::min()), "-9223372036854775808");
     assert_eq(utf::to_string(2.718281828, 'f', 5), "2.71828");
 
