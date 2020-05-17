@@ -8,8 +8,8 @@
 /// \author https://github.com/qzminsky
 /// \copyright https://github.com/qzminsky/utf8cpp/blob/master/LICENSE.md
 ///
-/// \version 1.0.0
-/// \date 2020/04/06
+/// \version 1.1.0
+/// \date 2020/05/18
 
 #ifndef UTF8CPP_H
 #define UTF8CPP_H
@@ -278,7 +278,7 @@ namespace utf
                  * \throw bad_operation
                 */
 #if __cplusplus >= 202000L
-                [[nodiscard("More optimal is using of the prefix increment")]]
+                [[nodiscard("More optimal is using of the pre-increment")]]
 #else
                 [[nodiscard]]
 #endif
@@ -296,7 +296,7 @@ namespace utf
                  * \throw bad_operation
                 */
 #if __cplusplus >= 202000L
-                [[nodiscard("More optimal is using of the prefix decrement")]]
+                [[nodiscard("More optimal is using of the pre-decrement")]]
 #else
                 [[nodiscard]]
 #endif
@@ -2028,6 +2028,8 @@ namespace utf
         /**
          * \brief Checks the current capacity of the string and reallocates if it's less than ordered
          * 
+         * \param new_cap New string's capacity (in bytes)
+         * 
          * \return Reference to the string
         */
         auto reserve (size_type new_cap) noexcept -> string&
@@ -2184,6 +2186,31 @@ namespace utf
         }
 
         /**
+         * \brief Applies given mutator to every character in the string
+         * 
+         * \param mutator Character-transforming functor
+         * 
+         * \return Reference to the modified string
+        */
+        // TODO Think about concept-version
+        template <typename Functor,
+                  typename = std::enable_if_t<std::is_invocable_r_v<char_type, Functor, char_type>>
+        >
+        auto transform (Functor&& mutator) -> string&
+        {
+            string tmp; tmp.reserve(capacity());
+
+            // Remake the string in the temporary location
+            auto vi = chars(); for (auto ch : vi)
+            {
+                tmp.push(mutator(ch));
+            }
+            swap(tmp);
+
+            return *this;
+        }
+
+        /**
          * \brief Replaces all occurences of the given substring by another
          * 
          * \param vi Substring pattern to replace
@@ -2223,15 +2250,9 @@ namespace utf
         {
             _validate_char(ucode, "Replacing by an invalid Unicode character");
 
-            for (auto _chars = chars();; _chars = chars())
-            {
-                if (auto it = _chars.find_if(std::forward<Functor>(pred)); !! it)
-                {
-                    replace(it, from_unicode({ ucode }));
-                }
-                else break;
-            }
-            return *this;
+            return transform(
+                [&pred, &ch] (char_type ch) { return pred(ch) ? ucode : ch; }
+            );
         }
 
         /**
@@ -2852,7 +2873,7 @@ namespace utf
                     result <<= 6;
                     result |= *where & 0x3F;
                 }
-            };
+            }
 
             return result;
         }

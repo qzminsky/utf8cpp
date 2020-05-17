@@ -155,11 +155,22 @@ auto main() -> int
         // == "One Hagrid ¥s"
     );
 
+    // Caesar transform
+    MyStr = "Curiouser and curiouser!";
+    assert_eq(
+        MyStr.transform([] (utf::string::char_type ch)
+        {
+            return std::isalpha(ch) ? (ch + 2) : ch;
+        }),
+        //      ⇓
+        "Ewtkqwugt cpf ewtkqwugt!"
+    );
+
     ///////////////////////////////////////////////////////////////////////////////////////////////
 
     // Numbers conversion sample
     assert_eq(utf::to_string(0xdeadf00d, 16).to_upper_ascii(), "DEADF00D");
-    assert_eq(utf::to_string(std::numeric_limits<uint64_t>::max(), 2), utf::string { '1', 64 });
+    assert_eq(utf::to_string(std::numeric_limits<uint64_t>::max(), 2), utf::string{ '1', 64 });
     assert_eq(utf::to_string(std::numeric_limits<int64_t>::min()), "-9223372036854775808");
     assert_eq(utf::to_string(2.718281828, 'f', 5), "2.71828");
 
