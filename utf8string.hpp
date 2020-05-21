@@ -2251,7 +2251,7 @@ namespace utf
             _validate_char(ucode, "Replacing by an invalid Unicode character");
 
             return transform(
-                [&pred, &ch] (char_type ch) { return pred(ch) ? ucode : ch; }
+                [&pred, &ucode] (char_type ch) { return pred(ch) ? ucode : ch; }
             );
         }
 
