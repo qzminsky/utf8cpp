@@ -18,7 +18,7 @@ The class `utf::string` describes a dynamic, contiguous storage of UTF-8-encoded
 * ...and rights to view and change are completely divided between `string`s and `view`s by design!
 
 ### Installation
-1. ![download-solid](https://user-images.githubusercontent.com/54913619/76699933-4a559500-66c3-11ea-978a-48808ab0f852.png) [Download](https://github.com/qzminsky/utf8cpp/archive/v1.1.0.zip) the library source;
+1. ![download-solid](https://user-images.githubusercontent.com/54913619/76699933-4a559500-66c3-11ea-978a-48808ab0f852.png) [Download](https://github.com/qzminsky/utf8cpp/archive/v1.1.1.zip) the library source;
 2. `#include` the `utf8string.hpp` file in your C++ project;
 3. Enjoy!
 
