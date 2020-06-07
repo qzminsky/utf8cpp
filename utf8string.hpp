@@ -8,13 +8,13 @@
 /// \author https://github.com/qzminsky
 /// \copyright https://github.com/qzminsky/utf8cpp/blob/master/LICENSE.md
 ///
-/// \version 1.2.0
-/// \date 2020/05/24
+/// \version 2.0.0
+/// \date 2020/06/07
 
 #ifndef UTF8CPP_H
 #define UTF8CPP_H
 
-static_assert(__cplusplus >= 201700L, "C++17 or higher is required");
+static_assert(__cplusplus >= 2017'00, "C++17 or higher is required");
 
 #include <algorithm>
 #include <cctype>
@@ -36,7 +36,7 @@ static_assert(__cplusplus >= 201700L, "C++17 or higher is required");
 #include <type_traits>
 #include <vector>
 
-#if __cplusplus >= 202000L
+#if __cplusplus >= 2020'00
 #   include <concepts>
 #endif
 
@@ -85,10 +85,11 @@ namespace utf
     public:
 
         // ANCHOR Member types
-        using size_type       = intmax_t;
-        using difference_type = ptrdiff_t;
-        using pointer         = uint8_t*;
-        using char_type       = uint32_t;
+        using size_type       = std::intmax_t;
+        using difference_type = std::ptrdiff_t;
+        using unit            = std::uint8_t;
+        using pointer         = unit*;
+        using char_type       = char32_t;
         using value_type      = char_type;
 
         /// The special value. The exact meaning depends on context
@@ -96,11 +97,11 @@ namespace utf
 
     private:
 
-        /*         size() == end_bytes() - bytes()    capacity() == _myend - bytes()
+        /*         size() == bytes_end() - bytes()    capacity() == _myend - bytes()
          *  ╭—————————˄——————————╮                    /
          * [x xx x xx xxx x xxxx x]..................⇤ _myend      -- data
          *  ↑                      ↑
-         *  _myfirst == bytes()    _mylast == end_bytes()
+         *  _myfirst == bytes()    _mylast == bytes_end()
         */
 
         pointer _myfirst = nullptr, _mylast = nullptr, _myend = nullptr;
@@ -112,7 +113,7 @@ namespace utf
         /**
          * \class view
          * 
-         * \brief An iterable, non-owning proxy type for string
+         * \brief Iterable span type for string
          * 
          * \details Desribes an iterable range with two pointers and a direction flag.
          * A forward direction means an iteration to the higher addresses; backward -- to the lower addresses.
@@ -125,6 +126,7 @@ namespace utf
             // ANCHOR Member types
             using size_type       = string::size_type;
             using difference_type = string::difference_type;
+            using unit            = string::unit;
             using pointer         = string::pointer;
             using char_type       = string::char_type;
             using value_type      = string::value_type;
@@ -278,7 +280,7 @@ namespace utf
                  * 
                  * \throw bad_operation
                 */
-#if __cplusplus >= 202000L
+#if __cplusplus >= 2020'00
                 [[nodiscard("More optimal is using of the pre-increment")]]
 #else
                 [[nodiscard]]
@@ -296,7 +298,7 @@ namespace utf
                  * 
                  * \throw bad_operation
                 */
-#if __cplusplus >= 202000L
+#if __cplusplus >= 2020'00
                 [[nodiscard("More optimal is using of the pre-decrement")]]
 #else
                 [[nodiscard]]
@@ -435,7 +437,7 @@ namespace utf
                  * 
                  * \param index Offset from current iterator
                  * 
-                 * \return Codepoint of the character `*this + index`
+                 * \return Codepoint of the `index`-th character in the bound view
                  * 
                  * \note This operator returns a value, not a reference
                  * 
@@ -504,7 +506,7 @@ namespace utf
                  * 
                  * \param other Iterator to compare with (right)
                  * 
-                 * \return `true` if both iterators are pointing to the same characters; `false` otherwise
+                 * \return `true` if both iterators are pointing to the same character; `false` otherwise
                 */
                 [[nodiscard]]
                 auto operator == (iterator const& other) const noexcept -> bool
@@ -748,6 +750,15 @@ namespace utf
             {}
 
             /**
+             * \brief Returns the copy of the original span
+            */
+            [[nodiscard]]
+            auto clone () const -> view
+            {
+                return *this;
+            }
+
+            /**
              * \brief Converting C-string assignment
              * 
              * \param cstr Source C-string (`const char*`) to assign
@@ -911,18 +922,20 @@ namespace utf
             /**
              * \brief Returns a vector of the views pointing to the every occurence of the given substrings
              * 
-             * \param vi First substring to search
-             * \param pack Other substrings to search
+             * \param views Substrings to search
             */
-#if __cplusplus >= 202000L
+#if __cplusplus >= 2020'00
             template <std::convertible_to<view>... View>
+            requires
+                     (sizeof...(View))
 #else
             template <typename... View,
-                      typename = std::enable_if_t<std::conjunction_v<std::is_convertible<View, view>...>>
+                      typename = std::enable_if_t<std::conjunction_v<std::is_convertible<View, view>...>>,
+                      typename = std::enable_if_t<sizeof...(View)>
             >
 #endif
             [[nodiscard]]
-            auto matches (view const& vi, View const&... pack) const noexcept -> std::vector<view>
+            auto matches (View const&... views) const noexcept -> std::vector<view>
             {
                 std::vector<view> res;
 
@@ -940,7 +953,7 @@ namespace utf
                     };
 
                     // Folding filling with all of the views in the pack
-                    _checked_push(vi), (_checked_push(pack), ...);
+                    (_checked_push(views), ...);
                 }
                 return res;
             }
@@ -951,7 +964,7 @@ namespace utf
              * 
              * \param pred Predicate to check
             */
-#if __cplusplus >= 202000L
+#if __cplusplus >= 2020'00
             template <std::predicate<char_type> Functor>
 #else
             template <typename Functor,
@@ -973,29 +986,31 @@ namespace utf
             /**
              * \brief Returns a vector of the iterators pointing to the every occurence of the characters
              * 
-             * \param ucode Character to search
-             * \param pack Other characters to search
+             * \param ucodes Characters to search
              * 
              * \throw unicode_error
             */
-#if __cplusplus >= 202000L
+#if __cplusplus >= 2020'00
             template <std::convertible_to<char_type>... Char>
+            requires
+                     (sizeof...(Char))
 #else
             template <typename... Char,
-                      typename = std::enable_if_t<std::conjunction_v<std::is_convertible<Char, char_type>...>>
+                      typename = std::enable_if_t<std::conjunction_v<std::is_convertible<Char, char_type>...>>,
+                      typename = std::enable_if_t<sizeof...(Char)>
             >
 #endif
             [[nodiscard]]
-            auto matches (char_type ucode, Char... pack) const -> std::vector<iterator>
+            auto matches (Char... ucodes) const -> std::vector<iterator>
             {
                 std::vector<iterator> res;
 
-                _validate_chars("Matching with an invalid Unicode character", ucode, pack...);
+                _validate_chars("Matching with an invalid Unicode character", ucodes...);
 
                 // Folding comparison with all of the characters in the pack
                 for (auto it = begin(); !! it; ++it)
                 {
-                    if (*it == ucode || ((*it == pack) || ...)) res.push_back(it);
+                    if (((*it == ucodes) || ...)) res.push_back(it);
                 }
                 return res;
             }
@@ -1003,20 +1018,22 @@ namespace utf
             /**
              * \brief Search for the given substring inside the view
              * 
-             * \param vi First substring to search
-             * \param pack Other substrings to search
+             * \param views Substrings to search
              * 
              * \return View of first occurrence of any substring or `[end(); end())` if it was not found
             */
-#if __cplusplus >= 202000L
+#if __cplusplus >= 2020'00
             template <std::convertible_to<view>... View>
+            requires
+                     (sizeof...(View))
 #else
             template <typename... View,
-                      typename = std::enable_if_t<std::conjunction_v<std::is_convertible<View, view>...>>
+                      typename = std::enable_if_t<std::conjunction_v<std::is_convertible<View, view>...>>,
+                      typename = std::enable_if_t<sizeof...(View)>
             >
 #endif
             [[nodiscard]]
-            auto find (view const& vi, View const&... pack) const noexcept -> view
+            auto find (View const&... views) const noexcept -> view
             {
                 view res = { end(), end() };
 
@@ -1039,7 +1056,7 @@ namespace utf
                     };
 
                     // Folding check all of the views in the pack
-                    if (_check(vi) | (_check(pack) | ... | false)) break;
+                    if ((_check(views) | ... | false)) break;
                 }
                 return res;
             }
@@ -1051,7 +1068,7 @@ namespace utf
              * 
              * \return Iterator to the first occurence of the character
             */
-#if __cplusplus >= 202000L
+#if __cplusplus >= 2020'00
             template <std::predicate<char_type> Functor>
 #else
             template <typename Functor,
@@ -1071,29 +1088,31 @@ namespace utf
             /**
              * \brief Search for the character in the view by its codepoint
              * 
-             * \param ucode First character to search
-             * \param pack Other characters to count
+             * \param ucodes Characters to search
              * 
              * \return Iterator to the first occurence of any character from the pack
              * 
              * \throw unicode_error
             */
-#if __cplusplus >= 202000L
+#if __cplusplus >= 2020'00
             template <std::convertible_to<char_type>... Char>
+            requires
+                     (sizeof...(Char))
 #else
             template <typename... Char,
-                      typename = std::enable_if_t<std::conjunction_v<std::is_convertible<Char, char_type>...>>
+                      typename = std::enable_if_t<std::conjunction_v<std::is_convertible<Char, char_type>...>>,
+                      typename = std::enable_if_t<sizeof...(Char)>
             >
 #endif
             [[nodiscard]]
-            auto find (char_type ucode, Char... pack) const -> iterator
+            auto find (Char... ucodes) const -> iterator
             {
-                _validate_chars("Search for an invalid Unicode character", ucode, pack...);
+                _validate_chars("Search for an invalid Unicode character", ucodes...);
 
                 // Folding comparison with all of the characters in the pack
                 for (auto it = begin(); !! it; ++it)
                 {
-                    if (*it == ucode || ((*it == pack) || ...)) return it;
+                    if (((*it == ucodes) || ...)) return it;
                 }
                 return end();
             }
@@ -1167,20 +1186,22 @@ namespace utf
              * \brief Predicate. Returns `true` if the view contains at least single specified
              * substring from the presented list
              * 
-             * \param vi First substring to search
-             * \param pack Other substrings to search
+             * \param views Substrings to search
             */
-#if __cplusplus >= 202000L
+#if __cplusplus >= 2020'00
             template <std::convertible_to<view>... View>
+            requires
+                     (sizeof...(View))
 #else
             template <typename... View,
-                      typename = std::enable_if_t<std::conjunction_v<std::is_convertible<View, view>...>>
+                      typename = std::enable_if_t<std::conjunction_v<std::is_convertible<View, view>...>>,
+                      typename = std::enable_if_t<sizeof...(View)>
             >
 #endif
             [[nodiscard]]
-            auto contains (view const& vi, View const&... pack) const noexcept -> bool
+            auto contains (View const&... views) const noexcept -> bool
             {
-                return !! find(vi, pack...);
+                return !! find(views...);
             }
 
             /**
@@ -1188,7 +1209,7 @@ namespace utf
              * 
              * \param pred Predicate to check
             */
-#if __cplusplus >= 202000L
+#if __cplusplus >= 2020'00
             template <std::predicate<char_type> Functor>
 #else
             template <typename Functor,
@@ -1205,49 +1226,52 @@ namespace utf
              * \brief Predicate. Returns `true` if the view contains at least single specified
              * character from the presented list
              * 
-             * \param ucode First character to search
-             * \param pack Other characters to search
+             * \param uchars Characters to search
              * 
              * \throw unicode_error
             */
-#if __cplusplus >= 202000L
+#if __cplusplus >= 2020'00
             template <std::convertible_to<char_type>... Char>
+            requires
+                     (sizeof...(Char))
 #else
             template <typename... Char,
-                      typename = std::enable_if_t<std::conjunction_v<std::is_convertible<Char, char_type>...>>
+                      typename = std::enable_if_t<std::conjunction_v<std::is_convertible<Char, char_type>...>>,
+                      typename = std::enable_if_t<sizeof...(Char)>
             >
 #endif
             [[nodiscard]]
-            auto contains (char_type ucode, Char... pack) const -> bool
+            auto contains (Char... uchars) const -> bool
             {
-                return !! find(ucode, pack...);
+                return !! find(uchars...);
             }
 
             /**
              * \brief Counts the number of occurences of all substrings in the pack
              * 
-             * \param vi First substring to count
-             * \param pack Other substrings to count
+             * \param views Substrings to count
              * 
              * \return Summary number of occurences
             */
-#if __cplusplus >= 202000L
+#if __cplusplus >= 2020'00
             template <std::convertible_to<view>... View>
+            requires
+                     (sizeof...(View))
 #else
             template <typename... View,
-                      typename = std::enable_if_t<std::conjunction_v<std::is_convertible<View, view>...>>
+                      typename = std::enable_if_t<std::conjunction_v<std::is_convertible<View, view>...>>,
+                      typename = std::enable_if_t<sizeof...(View)>
             >
 #endif
             [[nodiscard]]
-            auto count (view const& vi, View const&... pack) const noexcept -> size_type
+            auto count (View const&... views) const noexcept -> size_type
             {
                 size_type cnt = 0;
 
                 for (auto it = begin(); !! it; ++it)
                 {
                     // Folding counting with all of the views in the pack
-                    cnt += _sub_equal(vi.begin(), vi.end(), it).is_bound()
-                        + (_sub_equal(pack.begin(), pack.end(), it).is_bound() + ... + 0);
+                    cnt += (_sub_equal(views.begin(), views.end(), it).is_bound() + ... + 0);
                 }
                 return cnt;
             }
@@ -1259,7 +1283,7 @@ namespace utf
              * 
              * \return Number of occurences
             */
-#if __cplusplus >= 202000L
+#if __cplusplus >= 2020'00
             template <std::predicate<char_type> Functor>
 #else
             template <typename Functor,
@@ -1281,31 +1305,33 @@ namespace utf
             /**
              * \brief Counts the number of occurences of all characters in the pack
              * 
-             * \param ucode First character to count
-             * \param pack Other characters to count
+             * \param ucodes Characters to count
              * 
              * \return Summary number of occurences
              * 
              * \throw unicode_error
             */
-#if __cplusplus >= 202000L
+#if __cplusplus >= 2020'00
             template <std::convertible_to<char_type>... Char>
+            requires
+                     (sizeof...(Char))
 #else
             template <typename... Char,
-                      typename = std::enable_if_t<std::conjunction_v<std::is_convertible<Char, char_type>...>>
+                      typename = std::enable_if_t<std::conjunction_v<std::is_convertible<Char, char_type>...>>,
+                      typename = std::enable_if_t<sizeof...(Char)>
             >
 #endif
             [[nodiscard]]
-            auto count (char_type ucode, Char... pack) const -> size_type
+            auto count (Char... ucodes) const -> size_type
             {
-                _validate_chars("Counting of an invalid Unicode character", ucode, pack...);
+                _validate_chars("Counting of an invalid Unicode character", ucodes...);
 
                 size_type cnt = 0;
 
                 // Folding comparison with all of the characters in the pack
                 for (auto it = begin(); !! it; ++it)
                 {
-                    if (*it == ucode || ((*it == pack) || ...)) ++cnt;
+                    if (((*it == ucodes) || ...)) ++cnt;
                 }
                 return cnt;
             }
@@ -1338,6 +1364,32 @@ namespace utf
                 }
 
                 return *this;
+            }
+
+            /**
+             * \brief Returns a view with `N` first characters of the original span
+             *
+             * \param N Number of slicing characters
+             * 
+             * \throw length_error
+            */
+            [[nodiscard]]
+            auto first (size_type N) const -> view
+            {
+                return clone().truncate(0, N);
+            }
+
+            /**
+             * \brief Returns a view with `N` last characters of the original span
+             *
+             * \param N Number of slicing characters
+             * 
+             * \throw length_error
+            */
+            [[nodiscard]]
+            auto last (size_type N) const -> view
+            {
+                return clone().reverse().truncate(0, N).reverse();
             }
 
             /**
@@ -1428,7 +1480,7 @@ namespace utf
             [[nodiscard]]
             auto is_valid () const noexcept -> bool
             {
-                for (auto ptr = bytes(); ptr != bytes_end(); ++ptr)
+                for (auto ptr = bytes(); ptr != bytes_end(); ptr += string::_charsize(ptr))
                 {
                     if (!_is_valid_utf(ptr)) return false;
                 }
@@ -1463,6 +1515,19 @@ namespace utf
             }
 
         private:
+
+            /**
+             * \internal
+             * \brief Constructs a view via pair of pointers
+             * 
+             * \param start Beginning of the range
+             * \param end Ending of the range
+            */
+            view (pointer start, pointer end)
+                : _forward_begin{ start }
+                , _forward_end{ end }
+                , _direction{ direction::forward }
+            {}
 
             /**
              * \internal
@@ -1570,7 +1635,7 @@ namespace utf
         {
             auto bufsize = _codebytes(ucode) * count;
 
-            _myfirst = new uint8_t[bufsize];
+            _myfirst = new unit[bufsize];
             _mylast =
             _myend = bytes() + bufsize;
 
@@ -1600,7 +1665,7 @@ namespace utf
             );
 
             // Span initialization
-            tmp._myfirst = new uint8_t[size];
+            tmp._myfirst = new unit[size];
             tmp._mylast =
             tmp._myend = tmp.bytes() + size;
 
@@ -1626,7 +1691,7 @@ namespace utf
          * \throw unicode_error
         */
         [[nodiscard]]
-        static auto from_bytes (std::vector<uint8_t> const& vec) -> string
+        static auto from_bytes (std::vector<unit> const& vec) -> string
         {
             string tmp;
             tmp._bufinit((void*)vec.data(), vec.size());
@@ -1680,7 +1745,7 @@ namespace utf
          * 
          * \param vi View providing the set of characters to copy
         */
-        string (view const& vi) : _myfirst{ new uint8_t[vi.size()] }
+        string (view const& vi) : _myfirst{ new unit[vi.size()] }
         {
             _mylast =
             _myend = bytes() + vi.size(); auto ptr = bytes();
@@ -1841,9 +1906,9 @@ namespace utf
          * \brief Creates and returns an `std::vector` object containing the buffer bytes data
         */
         [[nodiscard]]
-        auto as_bytes () const -> std::vector<uint8_t>
+        auto as_bytes () const -> std::vector<unit>
         {
-            return std::vector<uint8_t>(bytes(), bytes_end());
+            return std::vector<unit>(bytes(), bytes_end());
         }
 
         /**
@@ -1866,11 +1931,11 @@ namespace utf
          * 
          * \return Reference to the modified string
         */
-        auto to_lower_ascii () noexcept -> string&
+        auto to_ascii_lower () noexcept -> string&
         {
             for (auto ptr = bytes(); ptr != bytes_end(); ++ptr)
             {
-                if (_is_ascii(*ptr)) *ptr = uint8_t(std::tolower(*ptr));
+                if (_is_ascii(*ptr)) *ptr = unit(std::tolower(*ptr));
             }
             return *this;
         }
@@ -1880,11 +1945,11 @@ namespace utf
          * 
          * \return Reference to the modified string
         */
-        auto to_upper_ascii () noexcept -> string&
+        auto to_ascii_upper () noexcept -> string&
         {
             for (auto ptr = bytes(); ptr != bytes_end(); ++ptr)
             {
-                if (_is_ascii(*ptr)) *ptr = uint8_t(std::toupper(*ptr));
+                if (_is_ascii(*ptr)) *ptr = unit(std::toupper(*ptr));
             }
             return *this;
         }
@@ -2036,7 +2101,7 @@ namespace utf
             {
                 auto tmp = bytes();
 
-                _myfirst = new uint8_t[new_cap];
+                _myfirst = new unit[new_cap];
                 _myend = bytes() + new_cap;
 
                 _bufinit((void*)tmp, _mylast - tmp);
@@ -2190,7 +2255,7 @@ namespace utf
          * 
          * \return Reference to the modified string
         */
-#if __cplusplus >= 202000L
+#if __cplusplus >= 2020'00
         template <std::invocable<char_type> Functor>
         requires
                  std::convertible_to<
@@ -2226,12 +2291,29 @@ namespace utf
         */
         auto replace_all (view const& vi, view const& other) -> string&
         {
-            for (;;)
+            string tmp; tmp.reserve(capacity());
+            auto chs = chars();
+
+            auto start = chs.begin();
+            auto mlist = chs.matches(vi);
+
+            /*             vi     (*)
+             *         ╭———˄——╮ ╭——˄—╮
+             * [x xx x yy yyy y zzzz z].       -- old buffer
+             *  ↓    ↓           ↓    ↓
+             * [x xx x w wwww ww zzzz z].      -- new buffer
+             *         ↑       ↑
+             *         └ other ┘
+            */
+            for (auto& match : mlist)
             {
-                if (auto range = chars().find(vi); !! range) replace(range, other);
-                else
-                    break;
+                tmp.push({ start, match.begin() }).push(other);
+                start = match.end();
             }
+            tmp.push({ start, chs.end() }); // (*)
+            
+            swap(tmp);
+
             return *this;
         }
 
@@ -2245,7 +2327,7 @@ namespace utf
          * 
          * \throw unicode_error
         */
-#if __cplusplus >= 202000L
+#if __cplusplus >= 2020'00
         template <std::predicate<char_type> Functor>
 #else
         template <typename Functor,
@@ -2379,7 +2461,7 @@ namespace utf
          * 
          * \return Reference to the modified string
         */
-#if __cplusplus >= 202000L
+#if __cplusplus >= 2020'00
         template <std::predicate<char_type> Functor>
 #else
         template <typename Functor,
@@ -2400,30 +2482,32 @@ namespace utf
         /**
          * \brief Removes all occurrences of the characters in the string
          * 
-         * \param ucode First character to remove
-         * \param pack Other characters to remove
+         * \param ucodes Characters to remove
          * 
          * \return Reference to the modified string
          * 
          * \throw unicode_error
         */
-#if __cplusplus >= 202000L
+#if __cplusplus >= 2020'00
         template <std::convertible_to<char_type>... Char>
+        requires
+                 (sizeof...(Char))
 #else
         template <typename... Char,
-                  typename = std::enable_if_t<std::conjunction_v<std::is_convertible<Char, char_type>...>>
+                  typename = std::enable_if_t<std::conjunction_v<std::is_convertible<Char, char_type>...>>,
+                  typename = std::enable_if_t<sizeof...(Char)>
         >
 #endif
-        auto remove (char_type ucode, Char... pack) -> string&
+        auto remove (Char... ucodes) -> string&
         {
-            _validate_chars("Removing an invalid Unicode character", ucode, pack...);
+            _validate_chars("Removing an invalid Unicode character", ucodes...);
 
             // Folding removing all of the characters in the pack
             return remove_if
             (
                 [&] (char_type cmp)
                 {
-                    return cmp == ucode || ((cmp == pack) || ...);
+                    return ((cmp == pack) || ...);
                 }
             );
         }
@@ -2431,23 +2515,25 @@ namespace utf
         /**
          * \brief Removes all occurences of the substrings in the current string
          * 
-         * \param vi First substring to remove
-         * \param pack Other substrings to remove
+         * \param views Substrings to remove
          * 
          * \return Reference to the modified string
         */
-#if __cplusplus >= 202000L
+#if __cplusplus >= 2020'00
         template <std::convertible_to<view>... View>
+        requires
+                 (sizeof...(View))
 #else
         template <typename... View,
-                  typename = std::enable_if_t<std::conjunction_v<std::is_convertible<View, view>...>>
+                  typename = std::enable_if_t<std::conjunction_v<std::is_convertible<View, view>...>>,
+                  typename = std::enable_if_t<sizeof...(View)>
         >
 #endif
-        auto remove (view const& vi, View const&... pack) noexcept -> string&
+        auto remove (View const&... views) noexcept -> string&
         {
             for (;;)
             {
-                if (auto range = chars().find(vi, pack...); !! range) erase(range);
+                if (auto range = chars().find(views...); !! range) erase(range);
                 else
                     break;
             }
@@ -2591,7 +2677,7 @@ namespace utf
         {
             auto copy_bytes = size();
 
-            auto tmp = new uint8_t[copy_bytes];
+            auto tmp = new unit[copy_bytes];
             std::copy_n(bytes(), copy_bytes, tmp);
 
             delete[] bytes();
@@ -2628,7 +2714,7 @@ namespace utf
          * 
          * \return Reference to the modified string
         */
-#if __cplusplus >= 202000L
+#if __cplusplus >= 2020'00
         template <std::predicate<char_type> Functor>
 #else
         template <typename Functor,
@@ -2691,7 +2777,6 @@ namespace utf
 
             // Simplifying internal spaces
             bool series = false;
-            auto range = chars();
 
             for (
                 pointer current = bytes(), start;
@@ -2708,10 +2793,7 @@ namespace utf
                 }
                 else if (series)
                 {
-                    range._forward_begin = start;
-                    range._forward_end = current;
-
-                    replace(range, " ");
+                    replace({ start, current }, " ");
 
                     current = start;
                     series = false;
@@ -2817,7 +2899,7 @@ namespace utf
             {
                 delete[] bytes();
 
-                _myfirst = new uint8_t[count];
+                _myfirst = new unit[count];
                 _myend = bytes() + count;
             }
             
@@ -2840,7 +2922,7 @@ namespace utf
         {
             if (!where) return 0;
 
-            uint8_t tmp = *where; size_type res = 0;
+            unit tmp = *where; size_type res = 0;
 
             if (!(tmp & 0x80)) return 1;
 
@@ -2917,21 +2999,23 @@ namespace utf
          * \brief Provokes a `unicode_error` exception throwing in case of any character's invalid codepoint
          * 
          * \param exception_msg Message into exception object
-         * \param ucode Checking Unicode character
-         * \param pack Other Unicode characters to check
+         * \param ucodes Unicode characters to check
          * 
          * \throw unicode_error
         */
-#if __cplusplus >= 202000L
+#if __cplusplus >= 2020'00
         template <std::convertible_to<char_type>... Char>
+        requires
+                 (sizeof...(Char))
 #else
         template <typename... Char,
-                  typename = std::enable_if_t<std::conjunction_v<std::is_convertible<Char, char_type>...>>
+                  typename = std::enable_if_t<std::conjunction_v<std::is_convertible<Char, char_type>...>>,
+                  typename = std::enable_if_t<sizeof...(Char)>
         >
 #endif
-        static auto _validate_chars (const char* exception_msg, char_type ucode, Char... pack) -> void
+        static auto _validate_chars (const char* exception_msg, Char... ucodes) -> void
         {
-            if (!_is_valid(ucode) || ((!_is_valid(pack)) || ...)) throw unicode_error{ exception_msg };
+            if (((!_is_valid(ucodes)) || ...)) throw unicode_error{ exception_msg };
         }
 
         /**
@@ -2982,7 +3066,7 @@ namespace utf
             // Multibyte characters representation
             else {
                 auto size = _codebytes(ucode), tmp = size;
-                uint8_t mask = 0x80;
+                unit mask = 0x80;
 
                 while (--size)
                 {
@@ -3101,7 +3185,7 @@ namespace utf
     [[nodiscard]]
     auto get (std::istream& in) -> string::char_type
     {
-        uint8_t code[4] {};
+        string::unit code[4] {};
 
         code[0] = in.get(); if (!in) return 0;
 
@@ -3120,7 +3204,7 @@ namespace utf
     */
     auto put (std::ostream& out, string::char_type ucode) -> void
     {
-        uint8_t code[5] {};
+        string::unit code[5] {};
         string::_encode(code, ucode);
 
         out << code;
@@ -3192,7 +3276,7 @@ namespace utf
      * 
      * \throw invalid_argument
     */
-#if __cplusplus >= 202000L
+#if __cplusplus >= 2020'00
     template <std::integral Integer>
 #else
     template <typename Integer,
@@ -3240,7 +3324,7 @@ namespace utf
      * 
      * \throw invalid_argument
     */
-#if __cplusplus >= 202000L
+#if __cplusplus >= 2020'00
     template <std::floating_point Float>
 #else
     template <typename Float,
@@ -3268,9 +3352,9 @@ namespace utf
 namespace std
 {
     /**
-     * \struct iterator_traits
+     * \class iterator_traits <utf::string_view::iterator>
      * 
-     * \brief Iterator traits instantiation for the `string_view::iterator` class
+     * \brief Iterator traits specialization for the `utf::string_view::iterator` class
     */
     template<>
     class iterator_traits <utf::string_view::iterator>
@@ -3305,6 +3389,38 @@ namespace std
     {
         v1.swap(v2);
     }
+
+    /**
+     * \struct hash <utf::string_view>
+     * 
+     * \brief Hash function object specialization for the `utf::string_view` class
+    */
+    template<>
+    struct hash <utf::string_view>
+    {
+        auto operator () (utf::string_view const& vi) const noexcept -> std::size_t
+        {
+            std::size_t h = 0; for (auto ch : vi)
+            {
+                h = 31 * h + ch;
+            }
+            return h;
+        }
+    };
+
+    /**
+     * \struct hash <utf::string>
+     * 
+     * \brief Hash function object specialization for the `utf::string` class
+    */
+    template<>
+    struct hash <utf::string>
+    {
+        auto operator () (utf::string const& str) const noexcept -> std::size_t
+        {
+            return std::hash<utf::string_view>{}(str.chars());
+        }
+    };
 
 }   // end namespace std
 
