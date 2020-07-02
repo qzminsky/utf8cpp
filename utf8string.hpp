@@ -8,8 +8,8 @@
 /// \author https://github.com/qzminsky
 /// \copyright https://github.com/qzminsky/utf8cpp/blob/master/LICENSE.md
 ///
-/// \version 2.0.0
-/// \date 2020/06/07
+/// \version 2.0.1
+/// \date 2020/07/02
 
 #ifndef UTF8CPP_H
 #define UTF8CPP_H
@@ -99,7 +99,7 @@ namespace utf
 
         /*         size() == bytes_end() - bytes()    capacity() == _myend - bytes()
          *  ╭—————————˄——————————╮                    /
-         * [x xx x xx xxx x xxxx x]..................⇤ _myend      -- data
+         * [x xx x xx xxx x xxxx x]..................⇤ _myend      — data
          *  ↑                      ↑
          *  _myfirst == bytes()    _mylast == bytes_end()
         */
@@ -116,7 +116,7 @@ namespace utf
          * \brief Iterable span type for string
          * 
          * \details Desribes an iterable range with two pointers and a direction flag.
-         * A forward direction means an iteration to the higher addresses; backward -- to the lower addresses.
+         * A forward direction means an iteration to the higher addresses; backward — to the lower addresses.
          * The view doesn't provides any mutators to the original string
         */
         class view
@@ -721,6 +721,19 @@ namespace utf
                 , _direction{ direction::forward }
             {}
 
+#if __cplusplus >= 2020'00
+            /**
+             * \brief Converting constructor from an UTF-8-encoded C-string
+             * 
+             * \param c8str UTF-8-encoded C-string to construct from
+            */
+            view (const char8_t* c8str)
+                : _forward_begin{ (pointer)(void*)c8str }
+                , _forward_end{ (pointer)(void*)((char*)c8str + std::strlen((char*)c8str)) }
+                , _direction{ direction::forward }
+            {}
+#endif
+
             /**
              * \brief Converting constructor from an iterator
              * 
@@ -927,7 +940,7 @@ namespace utf
 #if __cplusplus >= 2020'00
             template <std::convertible_to<view>... View>
             requires
-                     (sizeof...(View))
+                     (sizeof...(View) > 0)
 #else
             template <typename... View,
                       typename = std::enable_if_t<std::conjunction_v<std::is_convertible<View, view>...>>,
@@ -993,7 +1006,7 @@ namespace utf
 #if __cplusplus >= 2020'00
             template <std::convertible_to<char_type>... Char>
             requires
-                     (sizeof...(Char))
+                     (sizeof...(Char) > 0)
 #else
             template <typename... Char,
                       typename = std::enable_if_t<std::conjunction_v<std::is_convertible<Char, char_type>...>>,
@@ -1025,7 +1038,7 @@ namespace utf
 #if __cplusplus >= 2020'00
             template <std::convertible_to<view>... View>
             requires
-                     (sizeof...(View))
+                     (sizeof...(View) > 0)
 #else
             template <typename... View,
                       typename = std::enable_if_t<std::conjunction_v<std::is_convertible<View, view>...>>,
@@ -1097,7 +1110,7 @@ namespace utf
 #if __cplusplus >= 2020'00
             template <std::convertible_to<char_type>... Char>
             requires
-                     (sizeof...(Char))
+                     (sizeof...(Char) > 0)
 #else
             template <typename... Char,
                       typename = std::enable_if_t<std::conjunction_v<std::is_convertible<Char, char_type>...>>,
@@ -1191,7 +1204,7 @@ namespace utf
 #if __cplusplus >= 2020'00
             template <std::convertible_to<view>... View>
             requires
-                     (sizeof...(View))
+                     (sizeof...(View) > 0)
 #else
             template <typename... View,
                       typename = std::enable_if_t<std::conjunction_v<std::is_convertible<View, view>...>>,
@@ -1233,7 +1246,7 @@ namespace utf
 #if __cplusplus >= 2020'00
             template <std::convertible_to<char_type>... Char>
             requires
-                     (sizeof...(Char))
+                     (sizeof...(Char) > 0)
 #else
             template <typename... Char,
                       typename = std::enable_if_t<std::conjunction_v<std::is_convertible<Char, char_type>...>>,
@@ -1256,7 +1269,7 @@ namespace utf
 #if __cplusplus >= 2020'00
             template <std::convertible_to<view>... View>
             requires
-                     (sizeof...(View))
+                     (sizeof...(View) > 0)
 #else
             template <typename... View,
                       typename = std::enable_if_t<std::conjunction_v<std::is_convertible<View, view>...>>,
@@ -1314,7 +1327,7 @@ namespace utf
 #if __cplusplus >= 2020'00
             template <std::convertible_to<char_type>... Char>
             requires
-                     (sizeof...(Char))
+                     (sizeof...(Char) > 0)
 #else
             template <typename... Char,
                       typename = std::enable_if_t<std::conjunction_v<std::is_convertible<Char, char_type>...>>,
@@ -1714,7 +1727,7 @@ namespace utf
             
             for (std::ifstream ifs{ std::forward<Args>(args)... }; ifs; )
             {
-                tmp.push(get(ifs));
+                *tmp._expand(tmp.size() + 1) = (unit)ifs.get();
             }
             return tmp;
         }
@@ -1739,6 +1752,15 @@ namespace utf
          * \param cstr Source C-string (`const char*`) to construct from
         */
         string (const char* cstr) { _bufinit((void*)cstr, std::strlen(cstr)); }
+
+#if __cplusplus >= 2020'00
+        /**
+         * \brief Converting constructor from an UTF-8-encoded C-string
+         * 
+         * \param c8str Source UTF-8-encoded C-string (`const char8_t*`) to construct from
+        */
+        string (const char8_t* c8str) { _bufinit((void*)c8str, std::strlen((char*)c8str)); }
+#endif
 
         /**
          * \brief Converting constructor from a view
@@ -2299,9 +2321,9 @@ namespace utf
 
             /*             vi     (*)
              *         ╭———˄——╮ ╭——˄—╮
-             * [x xx x yy yyy y zzzz z].       -- old buffer
+             * [x xx x yy yyy y zzzz z].       — old buffer
              *  ↓    ↓           ↓    ↓
-             * [x xx x w wwww ww zzzz z].      -- new buffer
+             * [x xx x w wwww ww zzzz z].      — new buffer
              *         ↑       ↑
              *         └ other ┘
             */
@@ -2445,9 +2467,9 @@ namespace utf
 
             /*     pos     N           bytes_end()
              *        \╭———˄——╮        ↓
-             * [x xx x yy yyy y zzzz z].      -- old state
-             *  ↓    ↓ ←————————┘                          〉same buffer
-             * [x xx x zzzz z ........].      -- new state
+             * [x xx x yy yyy y zzzz z].      — old state
+             *  ↓    ↓ ←————————┘                         〉same buffer
+             * [x xx x zzzz z ........].      — new state
              *  ↑             ↑
              *  bytes()       bytes_end()
             */
@@ -2491,7 +2513,7 @@ namespace utf
 #if __cplusplus >= 2020'00
         template <std::convertible_to<char_type>... Char>
         requires
-                 (sizeof...(Char))
+                 (sizeof...(Char) > 0)
 #else
         template <typename... Char,
                   typename = std::enable_if_t<std::conjunction_v<std::is_convertible<Char, char_type>...>>,
@@ -2507,7 +2529,7 @@ namespace utf
             (
                 [&] (char_type cmp)
                 {
-                    return ((cmp == pack) || ...);
+                    return ((cmp == ucodes) || ...);
                 }
             );
         }
@@ -2522,7 +2544,7 @@ namespace utf
 #if __cplusplus >= 2020'00
         template <std::convertible_to<view>... View>
         requires
-                 (sizeof...(View))
+                 (sizeof...(View) > 0)
 #else
         template <typename... View,
                   typename = std::enable_if_t<std::conjunction_v<std::is_convertible<View, view>...>>,
@@ -2563,9 +2585,9 @@ namespace utf
 
             /*     pos     N           bytes_end()
              *        \╭———˄——╮        ↓
-             * [x xx x yy yyy y zzzz z].      -- old state
-             *  ↓    ↓       ←——┘                          〉same buffer
-             * [x xx x __ __ zzzz z ..].      -- new state
+             * [x xx x yy yyy y zzzz z].      — old state
+             *  ↓    ↓       ←——┘                         〉same buffer
+             * [x xx x __ __ zzzz z ..].      — new state
              *         ↑            ↑
              *         ptrpos       bytes_end()
             */
@@ -2576,9 +2598,9 @@ namespace utf
             }
             /*     pos     N           bytes_end()
              *        \╭———˄——╮        ↓
-             * [x xx x yy yyy y zzzz z].            -- old buffer
+             * [x xx x yy yyy y zzzz z].            — old buffer
              *  ↓    ↓ └————→
-             * [x xx x . ... __ ___ _ zzzz z].      -- new buffer
+             * [x xx x . ... __ ___ _ zzzz z].      — new buffer
              *         ↑                     ↑
              *         ptrpos                bytes_end()
             */
@@ -2844,9 +2866,9 @@ namespace utf
 
             /*   new_size       returning pointer
              *  ╭———˄—————————— ↓ —————╮
-             * [x xx x xx xxx x ........]    -- new buffer
+             * [x xx x xx xxx x ........]    — new buffer
              *  ↑             ↑
-             * [x xx x xx xxx x]             -- old buffer
+             * [x xx x xx xxx x]             — old buffer
             */
         }
 
@@ -2873,11 +2895,11 @@ namespace utf
 
             /*   new_size     returning pointer
              *  ╭———˄———————— ↓ ——————————————╮
-             * [x xx x xx xxx ........ y yyyy y]    -- new buffer ←——————┐
-             *  ↑           ↑ ┌———————→                              shifting
-             * [x xx x xx xxx y yyyy y ........]                         |
-             *  ↑           ↑                                        expanding
-             * [x xx x xx xxx y yyyy y]             -- old buffer ———————┘
+             * [x xx x xx xxx ........ y yyyy y]    — new buffer ←——————┐
+             *  ↑           ↑ ┌———————→                             shifting
+             * [x xx x xx xxx y yyyy y ........]                        |
+             *  ↑           ↑                                       expanding
+             * [x xx x xx xxx y yyyy y]             — old buffer ———————┘
              *                ↑
              *                where (original)
             */
@@ -3006,7 +3028,7 @@ namespace utf
 #if __cplusplus >= 2020'00
         template <std::convertible_to<char_type>... Char>
         requires
-                 (sizeof...(Char))
+                 (sizeof...(Char) > 0)
 #else
         template <typename... Char,
                   typename = std::enable_if_t<std::conjunction_v<std::is_convertible<Char, char_type>...>>,
