@@ -61,8 +61,8 @@ auto assert_throws (Functor&& expr) -> void
 */
 auto main() -> int
 {
-    // Sample string constructed from C-string
-    utf::string MyStr { "Mr Dursley was the director of a firm called Grunnings" };
+    // Sample string constructed from a C-string
+    utf::string MyStr{ "Mr Dursley was the director of a firm called Grunnings" };
 
     // ⚡ Powerful chaining
     assert_eq(
@@ -75,6 +75,16 @@ auto main() -> int
         //   └➄ ...and take the clipped string_view from the left side of original string
         "Mr Dursley was the director of a firm called"
     );
+
+#if __cplusplus >= 2020'00
+    // Multilingual construction — char8_t-literals is a C++20 feature
+    assert_eq(utf::string{ u8"السلام " }.push(u8"عليكم"), u8"السلام عليكم");
+    //        ^^^^^^^^^^^^^^^^^^^^^^^^^      ^^^^^^^^^^  ^^^^^^^^^^^^^^^^
+    //                 strings                    └ and views ┘
+
+    // WOW
+    assert_eq(utf::string{ u8"Z͑ͫ̓ͪ̂ͫ̽͏̴̙̤̞͉͚̯̞̠͍A̴̵̜̰͔ͫ͗͢L̠ͨͧͩ͘G̴̻͈͍͔̹̑͗̎̅͛́Ǫ̵̹̻̝̳͂̌̌͘!͖̬̰̙̗̿̋ͥͥ̂ͣ̐́́͜͞" }.length(), 75);  // — in codepoints, not graphemes
+#endif
 
     ///////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -125,7 +135,7 @@ auto main() -> int
     //                                      │                      └➀ an unbound iterator...
     //                                      └➁ ...cannot be modified or compared
 
-    // (*), (**), (***) -- Result discarding. 🛇 Do not repeat it at home.
+    // (*), (**), (***) — Results ignoring. 🛇 Do not repeat it at home.
 
     ///////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -177,7 +187,7 @@ auto main() -> int
     ///////////////////////////////////////////////////////////////////////////////////////////////
 
     // ♯ Hashing sample
-    assert_eq(std::hash<utf::string>{}("Hashable magic"), 11248827619910581013);
+    assert_eq(std::hash<utf::string>{}("Hashable magic"), 11248827619910581013ULL);
 
     ///////////////////////////////////////////////////////////////////////////////////////////////
 
