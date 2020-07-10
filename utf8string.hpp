@@ -8,8 +8,8 @@
 /// \author https://github.com/qzminsky
 /// \copyright https://github.com/qzminsky/utf8cpp/blob/master/LICENSE.md
 ///
-/// \version 2.0.1
-/// \date 2020/07/02
+/// \version 2.0.2
+/// \date 2020/07/10
 
 #ifndef UTF8CPP_H
 #define UTF8CPP_H
@@ -2117,7 +2117,7 @@ namespace utf
          * 
          * \return Reference to the string
         */
-        auto reserve (size_type new_cap) noexcept -> string&
+        auto reserve (size_type new_cap) -> string&
         {
             if (new_cap > capacity())
             {
@@ -2697,17 +2697,17 @@ namespace utf
         */
         auto shrink_to_fit () -> string&
         {
-            auto copy_bytes = size();
+            if (auto copy_bytes = size(); copy_bytes < capacity())
+            {
+                auto tmp = new unit[copy_bytes];
+                std::copy_n(bytes(), copy_bytes, tmp);
 
-            auto tmp = new unit[copy_bytes];
-            std::copy_n(bytes(), copy_bytes, tmp);
+                delete[] bytes();
 
-            delete[] bytes();
-
-            _myfirst = tmp;
-            _mylast =
-            _myend = bytes() + copy_bytes;
-
+                _myfirst = tmp;
+                _mylast =
+                _myend = bytes() + copy_bytes;
+            }
             return *this;
         }
 
