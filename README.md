@@ -25,7 +25,7 @@ The class `utf::string` describes a dynamic, contiguous storage of UTF-8-encoded
 > ⚠️ *Note that the library requires C++17 support*
 
 ## Usage examples
-> *See more examples in the [`sample.cpp`](https://github.com/qzminsky/utf8cpp/blob/master/sample.cpp) source file*
+> *See more examples in the [`sample.cpp`](https://github.com/qzminsky/utf8cpp/blob/master/sample.cpp#L62) source file*
 * Creating the string:
 ```C++
 // Constructing via const char*
