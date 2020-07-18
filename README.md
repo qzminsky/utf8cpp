@@ -1,4 +1,4 @@
-![utf8cpp](https://user-images.githubusercontent.com/54913619/76170749-e8ae9b80-6195-11ea-8780-efbf16e64d9a.png)
+![utf8cpp](https://user-images.githubusercontent.com/54913619/87860811-27750f00-c949-11ea-898f-c127652c6e64.png)
 
 ![version](https://img.shields.io/badge/version-2.0-brightgreen)
 [![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE.md)
