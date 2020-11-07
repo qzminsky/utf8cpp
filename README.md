@@ -41,7 +41,7 @@ auto MyString3 = utf::string::from_bytes({ 'B','y','t','e','s' });
 utf::string MyString4 { 0xA2, 10 };   // == "¢¢¢¢¢¢¢¢¢¢"
 
 // From an std::string
-auto MyString5 = utf::string:from_std_string("Evil is evil");
+auto MyString5 = utf::string::from_std_string("Evil is evil");
 ```
 * Iterating over the characters:
 ```C++
