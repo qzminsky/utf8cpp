@@ -1,6 +1,6 @@
 ![utf8cpp](https://user-images.githubusercontent.com/54913619/87860811-27750f00-c949-11ea-898f-c127652c6e64.png)
 
-![version](https://img.shields.io/badge/version-2.0-brightgreen)
+![version](https://img.shields.io/badge/version-3.0-brightgreen)
 [![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE.md)
 [![help](https://img.shields.io/badge/help-wiki-red)](../../wiki)
 ![cpp-version](https://img.shields.io/badge/C%2B%2B-≥17-blue)
@@ -18,7 +18,7 @@ The class `utf::string` describes a dynamic, contiguous storage of UTF-8-encoded
 * ...and rights to view and change are completely divided between `string`s and `view`s by design!
 
 ### Installation
-1. ![download-solid](https://user-images.githubusercontent.com/54913619/76699933-4a559500-66c3-11ea-978a-48808ab0f852.png) [Download](https://github.com/qzminsky/utf8cpp/archive/v2.0.2.zip) the library source;
+1. ![download-solid](https://user-images.githubusercontent.com/54913619/76699933-4a559500-66c3-11ea-978a-48808ab0f852.png) [Download](https://github.com/qzminsky/utf8cpp/archive/v3.0.0.zip) the library source;
 2. `#include` the `utf8string.hpp` file in your C++ project;
 3. Enjoy!
 
