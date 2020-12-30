@@ -6,10 +6,8 @@
 /// \brief Dynamic, contiguous storage of UTF-8-encoded characters set
 ///
 /// \author https://github.com/qzminsky
-/// \copyright https://github.com/qzminsky/utf8cpp/blob/master/LICENSE.md
-///
-/// \version 2.0.2
-/// \date 2020/07/10
+/// \version 3.0.0
+/// \date 2020/12/30
 
 #ifndef UTF8CPP_H
 #define UTF8CPP_H
@@ -22,6 +20,7 @@ static_assert(__cplusplus >= 2017'00, "C++17 or higher is required");
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <fstream>
 #include <initializer_list>
 #include <iomanip>
@@ -37,6 +36,7 @@ static_assert(__cplusplus >= 2017'00, "C++17 or higher is required");
 #include <vector>
 
 #if __cplusplus >= 2020'00
+#   include <compare>
 #   include <concepts>
 #endif
 
@@ -75,7 +75,7 @@ namespace utf
 
     /**
      * \class string
-     * 
+     *
      * \brief An UTF-8-based string class
      *
      * \details Stores an Unicode string as a dynamically-allocated memory buffer
@@ -85,7 +85,7 @@ namespace utf
     public:
 
         // ANCHOR Member types
-        using size_type       = std::intmax_t;
+        using size_type       = std::ptrdiff_t;
         using difference_type = std::ptrdiff_t;
         using unit            = std::uint8_t;
         using pointer         = unit*;
@@ -112,9 +112,9 @@ namespace utf
         // ANCHOR Type: view
         /**
          * \class view
-         * 
+         *
          * \brief Iterable span type for string
-         * 
+         *
          * \details Desribes an iterable range with two pointers and a direction flag.
          * A forward direction means an iteration to the higher addresses; backward — to the lower addresses.
          * The view doesn't provides any mutators to the original string
@@ -133,7 +133,7 @@ namespace utf
 
             /**
              * \enum direction
-             * 
+             *
              * \brief Describes a view's direction
             */
             enum class direction : bool
@@ -171,7 +171,7 @@ namespace utf
             class iterator
             {
             public:
-            
+
                 // ANCHOR Member types
                 using difference_type   = view::difference_type;
                 using value_type        = view::value_type;
@@ -195,7 +195,7 @@ namespace utf
 
                 /**
                  * \brief Untying the iterator from its parent
-                 * 
+                 *
                  * \return Reference to the modified iterator
                 */
                 auto free () noexcept -> iterator&
@@ -206,11 +206,11 @@ namespace utf
 
                 /**
                  * \brief Tying the iterator to the new parent view
-                 * 
+                 *
                  * \param to New parent view
-                 * 
+                 *
                  * \return Reference to the modified iterator
-                 * 
+                 *
                  * \throw out_of_range
                 */
                 auto bind (view& to) -> iterator&
@@ -236,7 +236,7 @@ namespace utf
 
                 /**
                  * \brief Predicate. Checks if the iterator is bound with specified view
-                 * 
+                 *
                  * \param to Parent view candidate
                 */
                 [[nodiscard]]
@@ -247,41 +247,41 @@ namespace utf
 
                 /**
                  * \brief Offsets the iterator to the next character consider direction
-                 * 
+                 *
                  * \return Reference to the modified iterator
-                 * 
+                 *
                  * \throw bad_operation
                 */
                 auto operator ++ () -> iterator&
                 {
-                    _confirm_op("Unable to increase unbound iterator");
+                    _assert_bound("Unable to increase unbound iterator");
 
                     return _parent->is_forward() ? _forward_increase() : _forward_decrease();
                 }
 
                 /**
                  * \brief Offsets the iterator to the previous character consider direction
-                 * 
+                 *
                  * \return Reference to the modified iterator
-                 * 
+                 *
                  * \throw bad_operation
                 */
                 auto operator -- () -> iterator&
                 {
-                    _confirm_op("Unable to decrease unbound iterator");
+                    _assert_bound("Unable to decrease unbound iterator");
 
                     return _parent->is_forward() ? _forward_decrease() : _forward_increase();
                 }
 
                 /**
                  * \brief Offsets the iterator to the next character consider direction
-                 * 
+                 *
                  * \return Previous iterator's state as copy of it
-                 * 
+                 *
                  * \throw bad_operation
                 */
 #if __cplusplus >= 2020'00
-                [[nodiscard("More optimal is using of the pre-increment")]]
+                [[nodiscard("Using of the pre-increment is more optimal")]]
 #else
                 [[nodiscard]]
 #endif
@@ -293,13 +293,13 @@ namespace utf
 
                 /**
                  * \brief Offsets the iterator to the previous character consider direction
-                 * 
+                 *
                  * \return Previous iterator's state as copy of it
-                 * 
+                 *
                  * \throw bad_operation
                 */
 #if __cplusplus >= 2020'00
-                [[nodiscard("More optimal is using of the pre-decrement")]]
+                [[nodiscard("Using of the pre-decrement is more optimal")]]
 #else
                 [[nodiscard]]
 #endif
@@ -311,11 +311,11 @@ namespace utf
 
                 /**
                  * \brief Offsets the iterator to the `count` characters ahead consider direction
-                 * 
+                 *
                  * \param count Number of hops
-                 * 
+                 *
                  * \return Reference to the modified iterator
-                 * 
+                 *
                  * \throw bad_operation
                 */
                 auto operator += (difference_type count) -> iterator&
@@ -340,11 +340,11 @@ namespace utf
 
                 /**
                  * \brief Offsets the iterator to the `count` characters back consider direction
-                 * 
+                 *
                  * \param count Number of hops
-                 * 
+                 *
                  * \return Reference to the modified iterator
-                 * 
+                 *
                  * \throw bad_operation
                 */
                 auto operator -= (difference_type count) -> iterator&
@@ -354,11 +354,11 @@ namespace utf
 
                 /**
                  * \brief Offsets the copy of the iterator to the `count` characters ahead consider direction
-                 * 
+                 *
                  * \param count Number of hops
-                 * 
+                 *
                  * \return Iterator with corresponding changes
-                 * 
+                 *
                  * \throw bad_operation
                 */
                 [[nodiscard]]
@@ -370,11 +370,11 @@ namespace utf
 
                 /**
                  * \brief Offsets the copy of the iterator to the `count` characters back consider direction
-                 * 
+                 *
                  * \param count Number of hops
-                 * 
+                 *
                  * \return Iterator with corresponding changes
-                 * 
+                 *
                  * \throw bad_operation
                 */
                 [[nodiscard]]
@@ -386,14 +386,14 @@ namespace utf
 
                 /**
                  * \brief Returns the number of hops to another iterator
-                 * 
+                 *
                  * \param other Iterator pointing to begin of the range
-                 * 
+                 *
                  * \return The number of increments needed to go from `other` to `*this` if less.
                  * Otherwise, returns the negative number of increments from `*this` to `other`
-                 * 
+                 *
                  * \note It also works with backward-directed views' iterators, but doesn't with unbound ones
-                 * 
+                 *
                  * \throw bad_operation
                 */
                 [[nodiscard]]
@@ -415,11 +415,11 @@ namespace utf
 
                 /**
                  * \brief Iterator dereferencing
-                 * 
+                 *
                  * \return Codepoint of the pointing character
-                 * 
+                 *
                  * \note This operator returns a value, not a reference
-                 * 
+                 *
                  * \throw out_of_range
                 */
                 [[nodiscard]]
@@ -434,13 +434,13 @@ namespace utf
 
                 /**
                  * \brief Iterator dereferencing with specified offset
-                 * 
+                 *
                  * \param index Offset from current iterator
-                 * 
+                 *
                  * \return Codepoint of the `index`-th character in the bound view
-                 * 
+                 *
                  * \note This operator returns a value, not a reference
-                 * 
+                 *
                  * \throw out_of_range
                  * \throw bad_operation
                 */
@@ -452,15 +452,15 @@ namespace utf
 
                 /**
                  * \brief Calculates the pointing character's index in the parent view
-                 * 
+                 *
                  * \return Count of hops from the beginning of the view
-                 * 
+                 *
                  * \throw bad_operation
                 */
                 [[nodiscard]]
                 auto as_index () const -> difference_type
                 {
-                    _confirm_op("Unable to calculate unbound iterator's index");
+                    _assert_bound("Unable to calculate unbound iterator's index");
 
                     return *this - _parent->begin();
                 }
@@ -468,44 +468,44 @@ namespace utf
                 /**
                  * \brief Calculates the pointing character's index in the parent view
                  * as if its direction is forward
-                 * 
+                 *
                  * \return Count of hops from the beginning of the view
-                 * 
+                 *
                  * \note The result of `.backward().end().as_forward_index()` is -1
-                 * 
+                 *
                  * \throw bad_operation
                 */
                 [[nodiscard]]
                 auto as_forward_index () const -> difference_type
                 {
-                    _confirm_op("Unable to calculate unbound iterator's index");
-                    
+                    _assert_bound("Unable to calculate unbound iterator's index");
+
                     return *this - _parent->forward().begin();
                 }
 
                 /**
                  * \brief Calculates the pointing character's index in the parent view
                  * as if its direction is backward
-                 * 
+                 *
                  * \return Count of hops from the beginning of the view
-                 * 
+                 *
                  * \note The result of `.forward().end().as_backward_index()` is -1
-                 * 
+                 *
                  * \throw bad_operation
                 */
                 [[nodiscard]]
                 auto as_backward_index () const -> difference_type
                 {
-                    _confirm_op("Unable to calculate unbound iterator's index");
+                    _assert_bound("Unable to calculate unbound iterator's index");
 
                     return *this - _parent->backward().begin();
                 }
 
                 /**
                  * \brief Compares two iterators by equality
-                 * 
+                 *
                  * \param other Iterator to compare with (right)
-                 * 
+                 *
                  * \return `true` if both iterators are pointing to the same character; `false` otherwise
                 */
                 [[nodiscard]]
@@ -516,9 +516,9 @@ namespace utf
 
                 /**
                  * \brief Compares two iterators by non-equality
-                 * 
+                 *
                  * \param other Iterator to compare with (right)
-                 * 
+                 *
                  * \return `true` if comparing iterators are pointing to the different characters; `false` otherwise
                 */
                 [[nodiscard]]
@@ -529,35 +529,37 @@ namespace utf
 
                 /**
                  * \brief Compares two iterators by less
-                 * 
+                 *
                  * \param other Iterator to compare with (right)
-                 * 
+                 *
                  * \return `true` if `*this` is less than `other`; `false` otherwise
-                 * 
+                 *
                  * \details The iterator `X` is less than `Y`, if it is possible to make them
                  * equal each other by increasing `X` sequentally (at least once)
-                 * 
+                 *
                  * \throw bad_operation
                 */
                 [[nodiscard]]
                 auto operator < (iterator const& other) const -> bool
                 {
-                    _confirm_op("Unbound iterators are unordered");
-                    other._confirm_op("Unbound iterators are unordered");
+                    auto err_msg = "Unbound iterators are unordered";
+
+                    _assert_bound(err_msg);
+                    other._assert_bound(err_msg);
 
                     return _parent->is_forward() ? (_base() < other._base()) : (_base() > other._base());
                 }
 
                 /**
                  * \brief Compares two iterators by less or equality
-                 * 
+                 *
                  * \param other Iterator to compare with (right)
-                 * 
+                 *
                  * \return `true` if `*this` is less than (or equal to) `other`; `false` otherwise
-                 * 
+                 *
                  * \details The iterator `X` is less than `Y`, if it is possible to make them
                  * equal each other by increasing `X` sequentally (or they are equal already)
-                 * 
+                 *
                  * \throw bad_operation
                 */
                 [[nodiscard]]
@@ -568,14 +570,14 @@ namespace utf
 
                 /**
                  * \brief Compares two iterators by great
-                 * 
+                 *
                  * \param other Iterator to compare with (right)
-                 * 
+                 *
                  * \return `true` if `*this` is greater than `other`; `false` otherwise
-                 * 
+                 *
                  * \details The iterator `X` is greater than `Y`, if it is possible to make them
                  * equal each other by increasing `Y` sequentally (at least once)
-                 * 
+                 *
                  * \throw bad_operation
                 */
                 [[nodiscard]]
@@ -586,14 +588,14 @@ namespace utf
 
                 /**
                  * \brief Compares two iterators by great or equality
-                 * 
+                 *
                  * \param other Iterator to compare with (right)
-                 * 
+                 *
                  * \return `true` if `*this` is greater than (or equal to) `other`; `false` otherwise
-                 * 
+                 *
                  * \details The iterator `X` is greater than `Y`, if it is possible to make them
                  * equal each other by increasing `Y` sequentally (or they are equal already)
-                 * 
+                 *
                  * \throw bad_operation
                 */
                 [[nodiscard]]
@@ -604,23 +606,23 @@ namespace utf
 
                 /**
                  * \brief Predicate operator. Returns `true` if the iterator points to the end of parent view
-                 * 
+                 *
                  * \throw bad_operation
                 */
                 [[nodiscard]]
                 auto operator ! () const -> bool
                 {
-                    _confirm_op("Unbound iterator range-checking");
+                    _assert_bound("Unbound iterator range-checking");
 
                     return *this == _parent->end();
                 }
 
             private:
-            
+
                 /**
                  * \internal
                  * \brief Constructs the iterator from address bounded to specified view
-                 * 
+                 *
                  * \param dp Pointer to the character inside the view
                  * \param whos Parent view
                 */
@@ -629,14 +631,14 @@ namespace utf
                 /**
                  * \internal
                  * \brief Offsets the iterator to the previous character in forward direction
-                 * 
+                 *
                  * \return Reference to the modified iterator
-                 * 
+                 *
                  * \throw bad_operation
                 */
                 auto _forward_decrease () -> iterator&
                 {
-                    _confirm_op("Unbound iterator modifying");
+                    _assert_bound("Unbound iterator modifying");
 
                     // Reverse ending iterator stays at the same place...
                     if (
@@ -656,14 +658,14 @@ namespace utf
                 /**
                  * \internal
                  * \brief Offsets the iterator to the next character in forward direction
-                 * 
+                 *
                  * \return Reference to the modified iterator
-                 * 
+                 *
                  * \throw bad_operation
                 */
                 auto _forward_increase () -> iterator&
                 {
-                    _confirm_op("Unbound iterator modifying");
+                    _assert_bound("Unbound iterator modifying");
 
                     // Shift the base pointer to the character's bytes count;
                     // forward ending iterator stays at the same place
@@ -686,10 +688,10 @@ namespace utf
                 /**
                  * \internal
                  * \brief Checks if an operation is allowed with iterator; throws otherwise
-                 * 
+                 *
                  * \throw bad_operation
                 */
-                auto _confirm_op (const char* exception_msg) const -> void
+                auto _assert_bound (const char* exception_msg) const -> void
                 {
                     if (!is_bound()) throw bad_operation{ exception_msg };
                 }
@@ -701,7 +703,7 @@ namespace utf
 
             /**
              * \brief Constructs the view over the string
-             * 
+             *
              * \param base String to view
             */
             view (string const& base)
@@ -712,7 +714,7 @@ namespace utf
 
             /**
              * \brief Converting constructor from C-string
-             * 
+             *
              * \param cstr C-string to construct from
             */
             view (const char* cstr)
@@ -724,7 +726,7 @@ namespace utf
 #if __cplusplus >= 2020'00
             /**
              * \brief Converting constructor from an UTF-8-encoded C-string
-             * 
+             *
              * \param c8str UTF-8-encoded C-string to construct from
             */
             view (const char8_t* c8str)
@@ -736,9 +738,9 @@ namespace utf
 
             /**
              * \brief Converting constructor from an iterator
-             * 
+             *
              * \param it Begin iterator
-             * 
+             *
              * \details Creates a view over single character by an iterator
             */
             view (iterator it)
@@ -749,10 +751,10 @@ namespace utf
 
             /**
              * \brief Constructs a view via pair of iterators
-             * 
+             *
              * \param be Begin iterator
              * \param en End iterator
-             * 
+             *
              * \details In actual, checks the order of given iterators and may swap them
              * to keep the valid range taking the forward direction into account
             */
@@ -773,9 +775,9 @@ namespace utf
 
             /**
              * \brief Converting C-string assignment
-             * 
+             *
              * \param cstr Source C-string (`const char*`) to assign
-             * 
+             *
              * \return Reference to the left operand
             */
             auto operator = (const char* cstr) -> view&
@@ -789,7 +791,7 @@ namespace utf
 
             /**
              * \brief Creates a view-based string as the copy of original
-             * 
+             *
              * \return Copy of the original string in specified characters range
             */
             [[nodiscard]]
@@ -800,7 +802,7 @@ namespace utf
 
             /**
              * \brief Flips the iterating direction
-             * 
+             *
              * \return Reference to the modfied view
             */
             auto reverse () noexcept -> view&
@@ -811,7 +813,7 @@ namespace utf
 
             /**
              * \brief Copies the view and sets the copy's iterating direction as forward
-             * 
+             *
              * \return Modified copy of the original view
             */
             auto forward () const -> view
@@ -824,7 +826,7 @@ namespace utf
 
             /**
              * \brief Copies the view and sets the copy's iterating direction as backward
-             * 
+             *
              * \return Modified copy of the original view
             */
             auto backward () const -> view
@@ -934,7 +936,7 @@ namespace utf
 
             /**
              * \brief Returns a vector of the views pointing to the every occurence of the given substrings
-             * 
+             *
              * \param views Substrings to search
             */
 #if __cplusplus >= 2020'00
@@ -974,7 +976,7 @@ namespace utf
             /**
              * \brief Returns a vector of the iterators pointing to the every occurence of all characters
              * satisfying specified criteria
-             * 
+             *
              * \param pred Predicate to check
             */
 #if __cplusplus >= 2020'00
@@ -998,9 +1000,9 @@ namespace utf
 
             /**
              * \brief Returns a vector of the iterators pointing to the every occurence of the characters
-             * 
+             *
              * \param ucodes Characters to search
-             * 
+             *
              * \throw unicode_error
             */
 #if __cplusplus >= 2020'00
@@ -1030,9 +1032,9 @@ namespace utf
 
             /**
              * \brief Search for the given substring inside the view
-             * 
+             *
              * \param views Substrings to search
-             * 
+             *
              * \return View of first occurrence of any substring or `[end(); end())` if it was not found
             */
 #if __cplusplus >= 2020'00
@@ -1076,9 +1078,9 @@ namespace utf
 
             /**
              * \brief Search for the first character in the view satisfying specified criteria
-             * 
+             *
              * \param pred Predicate to check
-             * 
+             *
              * \return Iterator to the first occurence of the character
             */
 #if __cplusplus >= 2020'00
@@ -1100,11 +1102,11 @@ namespace utf
 
             /**
              * \brief Search for the character in the view by its codepoint
-             * 
+             *
              * \param ucodes Characters to search
-             * 
+             *
              * \return Iterator to the first occurence of any character from the pack
-             * 
+             *
              * \throw unicode_error
             */
 #if __cplusplus >= 2020'00
@@ -1132,7 +1134,7 @@ namespace utf
 
             /**
              * \brief Predicate. Returns `true` if the view starts with another one
-             * 
+             *
              * \param vi View to match
             */
             [[nodiscard]]
@@ -1143,7 +1145,7 @@ namespace utf
 
             /**
              * \brief Predicate. Returns `true` if the view ends with another one
-             * 
+             *
              * \param vi View to match
             */
             [[nodiscard]]
@@ -1159,7 +1161,7 @@ namespace utf
              *
              * \note This is an `O(n)` operation as it requires iteration over every UTF-8 character from
              * the beginning of the view to the `index`-th position
-             * 
+             *
              * \throw invalid_argument
              * \throw out_of_range
             */
@@ -1173,7 +1175,7 @@ namespace utf
 
             /**
              * \brief Returns the codepoint of the first character of the view
-             * 
+             *
              * \throw out_of_range
             */
             [[nodiscard]]
@@ -1184,9 +1186,9 @@ namespace utf
 
             /**
              * \brief Returns the codepoint of the last character of the view
-             * 
+             *
              * \note This is an `O(1)` operation
-             * 
+             *
              * \throw out_of_range
             */
             [[nodiscard]]
@@ -1198,7 +1200,7 @@ namespace utf
             /**
              * \brief Predicate. Returns `true` if the view contains at least single specified
              * substring from the presented list
-             * 
+             *
              * \param views Substrings to search
             */
 #if __cplusplus >= 2020'00
@@ -1219,7 +1221,7 @@ namespace utf
 
             /**
              * \brief Predicate. Returns `true` if the view contains characters satisfying specified criteria
-             * 
+             *
              * \param pred Predicate to check
             */
 #if __cplusplus >= 2020'00
@@ -1238,9 +1240,9 @@ namespace utf
             /**
              * \brief Predicate. Returns `true` if the view contains at least single specified
              * character from the presented list
-             * 
+             *
              * \param uchars Characters to search
-             * 
+             *
              * \throw unicode_error
             */
 #if __cplusplus >= 2020'00
@@ -1261,9 +1263,9 @@ namespace utf
 
             /**
              * \brief Counts the number of occurences of all substrings in the pack
-             * 
+             *
              * \param views Substrings to count
-             * 
+             *
              * \return Summary number of occurences
             */
 #if __cplusplus >= 2020'00
@@ -1291,9 +1293,9 @@ namespace utf
 
             /**
              * \brief Counts the number of characters satisfying specified criteria
-             * 
+             *
              * \param pred Predicate to check
-             * 
+             *
              * \return Number of occurences
             */
 #if __cplusplus >= 2020'00
@@ -1317,11 +1319,11 @@ namespace utf
 
             /**
              * \brief Counts the number of occurences of all characters in the pack
-             * 
+             *
              * \param ucodes Characters to count
-             * 
+             *
              * \return Summary number of occurences
-             * 
+             *
              * \throw unicode_error
             */
 #if __cplusplus >= 2020'00
@@ -1351,12 +1353,12 @@ namespace utf
 
             /**
              * \brief Restricts the range of the view
-             * 
+             *
              * \param off Offset of the new starting character index from its old
              * \param N Number of characters in the new range
-             * 
+             *
              * \return Reference to the modified view
-             * 
+             *
              * \throw invalid_argument
              * \throw length_error
             */
@@ -1383,7 +1385,7 @@ namespace utf
              * \brief Returns a view with `N` first characters of the original span
              *
              * \param N Number of slicing characters
-             * 
+             *
              * \throw length_error
             */
             [[nodiscard]]
@@ -1396,7 +1398,7 @@ namespace utf
              * \brief Returns a view with `N` last characters of the original span
              *
              * \param N Number of slicing characters
-             * 
+             *
              * \throw length_error
             */
             [[nodiscard]]
@@ -1407,9 +1409,9 @@ namespace utf
 
             /**
              * \brief Compares two views by equality
-             * 
+             *
              * \param other View to compare with
-             * 
+             *
              * \return `true` if the views' data is equivalent to each other; `false` otherwise
             */
             [[nodiscard]]
@@ -1418,11 +1420,25 @@ namespace utf
                 return (size() == other.size()) && _sub_equal(begin(), end(), other.begin()).is_bound();
             }
 
+#if __cplusplus >= 2020'00
+            /**
+             * \brief Three-way comparison between two views (non-including its equality check)
+             *
+             * \param other View to compare with
+             *
+             * \return Ordering-typed result
+            */
+            [[nodiscard]]
+            auto operator <=> (view const& other) const noexcept -> std::strong_ordering
+            {
+                return std::lexicographical_compare_three_way(begin(), end(), other.begin(), other.end());
+            }
+#else
             /**
              * \brief Compares two views by non-equality
-             * 
+             *
              * \param other View to compare with
-             * 
+             *
              * \return `true` if the views' data differs from each other; `false` otherwise
             */
             [[nodiscard]]
@@ -1433,9 +1449,9 @@ namespace utf
 
             /**
              * \brief Checks if the view's data lexicographically less than the other's
-             * 
+             *
              * \param vi View to compare with
-             * 
+             *
              * \return `true` if the first view is lexicographically less than the second;
              * `false` otherwise
             */
@@ -1447,9 +1463,9 @@ namespace utf
 
             /**
              * \brief Checks if the view's data lexicographically greater than the other's
-             * 
+             *
              * \param vi View to compare with
-             * 
+             *
              * \return `true` if the first view is lexicographically greater than the second;
              * `false` otherwise
             */
@@ -1461,9 +1477,9 @@ namespace utf
 
             /**
              * \brief Checks if the view's data lexicographically less or equal to the other's
-             * 
+             *
              * \param vi View to compare with
-             * 
+             *
              * \return `true` if the first view is lexicographically less or equal to the second;
              * `false` otherwise
             */
@@ -1475,9 +1491,9 @@ namespace utf
 
             /**
              * \brief Checks if the view's data lexicographically greater or equal to the other's
-             * 
+             *
              * \param vi View to compare with
-             * 
+             *
              * \return `true` if the first view is lexicographically greater or equal to the second;
              * `false` otherwise
             */
@@ -1486,6 +1502,7 @@ namespace utf
             {
                 return !(*this < vi);
             }
+#endif
 
             /**
              * \brief Predicate. Checks if the view contains only valid UTF-8 characters
@@ -1517,7 +1534,7 @@ namespace utf
 
             /**
              * \brief Swaps the spans of two views
-             * 
+             *
              * \param other View to swap
             */
             auto swap (view& other) noexcept -> void
@@ -1532,7 +1549,7 @@ namespace utf
             /**
              * \internal
              * \brief Constructs a view via pair of pointers
-             * 
+             *
              * \param start Beginning of the range
              * \param end Ending of the range
             */
@@ -1545,11 +1562,11 @@ namespace utf
             /**
              * \internal
              * \brief Сompares two subviews by equality
-             * 
+             *
              * \param first1 Begin of the first range
              * \param last1 End of the first range
              * \param first2 Begin of the second range
-             * 
+             *
              * \return End of the second range (unbound if equality not satisfied)
             */
             static auto _sub_equal (iterator first1, iterator last1, iterator first2) noexcept -> iterator
@@ -1564,7 +1581,7 @@ namespace utf
             /**
              * \internal
              * \brief Returns the beginning iterator on backward iterating direction
-             * 
+             *
              * \note Returning iterator points to the last character of the view
             */
             auto _forward_rbegin () const -> iterator
@@ -1575,7 +1592,7 @@ namespace utf
             /**
              * \internal
              * \brief Returns the ending iterator on backward iterating direction
-             * 
+             *
              * \note Returning iterator points to the previous byte of the first character of the view
             */
             auto _forward_rend () const -> iterator
@@ -1586,7 +1603,7 @@ namespace utf
             /**
              * \internal
              * \brief Predicate. Checks if a pointing character is Unicode-valid
-             * 
+             *
              * \param ptr Pointer to the character
             */
             [[nodiscard]]
@@ -1622,14 +1639,14 @@ namespace utf
 
         /**
          * \brief Copy constructor
-         * 
+         *
          * \param other String to copy
         */
         string (string const& other) { _bufinit((void*)other.bytes(), other.size()); }
 
         /**
          * \brief Move constructor
-         * 
+         *
          * \param other String to move from
         */
         string (string&& other) noexcept
@@ -1640,7 +1657,7 @@ namespace utf
 
         /**
          * \brief Filling constructor
-         * 
+         *
          * \param ucode Duplicating character
          * \param count Number of character's copies
         */
@@ -1660,9 +1677,9 @@ namespace utf
 
         /**
          * \brief Constructs a string via given array of Unicode codepoints
-         * 
+         *
          * \param data Initializer list
-         * 
+         *
          * \throw unicode_error
         */
         [[nodiscard]]
@@ -1684,7 +1701,7 @@ namespace utf
 
             // Encoding into UTF-8
             auto dit = tmp.bytes();
-            
+
             for (auto ucode : data)
             {
                 _validate_chars("Source array contains a character with invalid codepoint", ucode);
@@ -1696,11 +1713,11 @@ namespace utf
 
         /**
          * \brief Constrcuts a string via UTF-8 buffer stored in vector
-         * 
+         *
          * \param vec UTF-8-encoded characters' vector to construct from
-         * 
+         *
          * \note The reverse operation is `make_bytes()`
-         * 
+         *
          * \throw unicode_error
         */
         [[nodiscard]]
@@ -1716,25 +1733,32 @@ namespace utf
 
         /**
          * \brief Constructs a string containing file data
-         * 
-         * \param args `std::ifstream` construction pack
+         *
+         * \param path File system path
+         *
+         * \throw unicode_error
         */
-        template <typename... Args>
         [[nodiscard]]
-        static auto from_file (Args&&... args) -> string
+        static auto from_file (std::filesystem::path const& path) -> string
         {
             string tmp;
-            
-            for (std::ifstream ifs{ std::forward<Args>(args)... }; ifs; )
-            {
-                *tmp._expand(tmp.size() + 1) = (unit)ifs.get();
-            }
+            std::ifstream ifs{ path, std::ios_base::binary | std::ios_base::ate };
+
+            // Allocate memory once
+            tmp.reserve(ifs.tellg());
+            ifs.seekg(0, std::ios_base::beg);
+
+            ifs.rdbuf()->sgetn((char*)tmp.bytes(), tmp.capacity());
+            tmp._mylast = tmp._myend;
+
+            if (!tmp.chars().is_valid()) throw unicode_error{ "Source file contains invalid UTF-8 data" };
+
             return tmp;
         }
 
         /**
          * \brief Converting constructor from `std::string`
-         * 
+         *
          * \param stds Source `std::string` to construct from
         */
         [[nodiscard]]
@@ -1748,7 +1772,7 @@ namespace utf
 
         /**
          * \brief Converting constructor from a C-string
-         * 
+         *
          * \param cstr Source C-string (`const char*`) to construct from
         */
         string (const char* cstr) { _bufinit((void*)cstr, std::strlen(cstr)); }
@@ -1756,7 +1780,7 @@ namespace utf
 #if __cplusplus >= 2020'00
         /**
          * \brief Converting constructor from an UTF-8-encoded C-string
-         * 
+         *
          * \param c8str Source UTF-8-encoded C-string (`const char8_t*`) to construct from
         */
         string (const char8_t* c8str) { _bufinit((void*)c8str, std::strlen((char*)c8str)); }
@@ -1764,7 +1788,7 @@ namespace utf
 
         /**
          * \brief Converting constructor from a view
-         * 
+         *
          * \param vi View providing the set of characters to copy
         */
         string (view const& vi) : _myfirst{ new unit[vi.size()] }
@@ -1772,7 +1796,7 @@ namespace utf
             _mylast =
             _myend = bytes() + vi.size(); auto ptr = bytes();
 
-            // Using for-cycle to construct from reversed views
+            // Using for-cycle to construct from reversed views correctly
             for (auto ucode : vi) {
                 ptr = _encode(ptr, ucode);
             }
@@ -1780,9 +1804,9 @@ namespace utf
 
         /**
          * \brief Copy assignment
-         * 
+         *
          * \param other String to copy
-         * 
+         *
          * \return Reference to the left operand
         */
         auto operator = (string const& other) -> string&
@@ -1796,9 +1820,9 @@ namespace utf
 
         /**
          * \brief Move assignment
-         * 
+         *
          * \param other String to move from
-         * 
+         *
          * \return Reference to the left operand
         */
         auto operator = (string&& other) noexcept -> string&
@@ -1814,15 +1838,15 @@ namespace utf
 
         /**
          * \brief Converting C-string assignment
-         * 
+         *
          * \param cstr Source C-string (`const char*`) to assign
-         * 
+         *
          * \return Reference to the left operand
         */
         auto operator = (const char* cstr) -> string&
         {
             _bufinit((void*)cstr, std::strlen(cstr));
-            
+
             return *this;
         }
 
@@ -1862,7 +1886,7 @@ namespace utf
          * \return `view`-wrapper over the current string
          *
          * \note This is an `O(n)` operation
-         * 
+         *
          * \throw invalid_argument
          * \throw length_error
         */
@@ -1880,7 +1904,7 @@ namespace utf
          * \return `view`-wrapper over current string
          *
          * \note This is an `O(n)` operation
-         * 
+         *
          * \throw length_error
         */
         [[nodiscard]]
@@ -1897,7 +1921,7 @@ namespace utf
          * \return `view`-wrapper over the current string
          *
          * \note This is an `O(n)` operation
-         * 
+         *
          * \throw length_error
         */
         [[nodiscard]]
@@ -1950,7 +1974,7 @@ namespace utf
 
         /**
          * \brief Converts all ASCII characters in the string into lowercase
-         * 
+         *
          * \return Reference to the modified string
         */
         auto to_ascii_lower () noexcept -> string&
@@ -1964,7 +1988,7 @@ namespace utf
 
         /**
          * \brief Converts all ASCII characters in the string into uppercase
-         * 
+         *
          * \return Reference to the modified string
         */
         auto to_ascii_upper () noexcept -> string&
@@ -1978,9 +2002,9 @@ namespace utf
 
         /**
          * \brief Compares the string and the view by its contents equality
-         * 
+         *
          * \param vi View to compare with
-         * 
+         *
          * \return `true` if `*this` is equivalent to view's data; `false` otherwise
         */
         [[nodiscard]]
@@ -1989,11 +2013,25 @@ namespace utf
             return vi == chars();
         }
 
+#if __cplusplus >= 2020'00
+        /**
+         * \brief Three-way comparison between the string and the view (non-including its equality check)
+         *
+         * \param vi View to compare with
+         *
+         * \return Ordering-typed result
+        */
+        [[nodiscard]]
+        auto operator <=> (view const& vi) const noexcept -> std::strong_ordering
+        {
+            return chars() <=> vi;
+        }
+#else
         /**
          * \brief Compares the string and the view by non-equality
-         * 
+         *
          * \param vi View to compare with
-         * 
+         *
          * \return `true` if `*this` differs from view's data; `false` otherwise
         */
         [[nodiscard]]
@@ -2004,9 +2042,9 @@ namespace utf
 
         /**
          * \brief Checks if the string's data lexicographically less than the view's
-         * 
+         *
          * \param vi View to compare with
-         * 
+         *
          * \return `true` if the string is lexicographically less than the view;
          * `false` otherwise
         */
@@ -2018,9 +2056,9 @@ namespace utf
 
         /**
          * \brief Checks if the string's data lexicographically greater than the view's
-         * 
+         *
          * \param vi View to compare with
-         * 
+         *
          * \return `true` if the string is lexicographically greater than the view;
          * `false` otherwise
         */
@@ -2032,9 +2070,9 @@ namespace utf
 
         /**
          * \brief Checks if the string's data lexicographically less or equal to the view's
-         * 
+         *
          * \param vi View to compare with
-         * 
+         *
          * \return `true` if the string is lexicographically less or equal to the view;
          * `false` otherwise
         */
@@ -2046,9 +2084,9 @@ namespace utf
 
         /**
          * \brief Checks if the string's data lexicographically greater or equal to the view's
-         * 
+         *
          * \param vi View to compare with
-         * 
+         *
          * \return `true` if the string is lexicographically greater or equal to the view;
          * `false` otherwise
         */
@@ -2057,6 +2095,7 @@ namespace utf
         {
             return chars() >= vi;
         }
+#endif
 
         /**
          * \brief Predicate. Returns `true` if string does not contains any characters
@@ -2112,9 +2151,9 @@ namespace utf
 
         /**
          * \brief Checks the current capacity of the string and reallocates if it's less than ordered
-         * 
+         *
          * \param new_cap New string's capacity (in bytes)
-         * 
+         *
          * \return Reference to the string
         */
         auto reserve (size_type new_cap) -> string&
@@ -2138,7 +2177,7 @@ namespace utf
          * \param ucode Appending character
          *
          * \return Reference to the modified string
-         * 
+         *
          * \throw unicode_error
         */
         auto push (char_type ucode) -> string&
@@ -2165,7 +2204,7 @@ namespace utf
 
         /**
          * \brief Removes the last character from the string and returns its codepoint
-         * 
+         *
          * \throw underflow_error
         */
         auto pop () -> char_type
@@ -2185,7 +2224,7 @@ namespace utf
          * \param ucode Unicode character to insert
          *
          * \return Reference to the modified string
-         * 
+         *
          * \throw invalid_argument
          * \throw unicode_error
         */
@@ -2206,7 +2245,7 @@ namespace utf
          * \param ucode Unicode character to insert
          *
          * \return Reference to the modified string
-         * 
+         *
          * \throw out_of_range
          * \throw unicode_error
         */
@@ -2214,7 +2253,7 @@ namespace utf
         {
             _validate_chars("Invalid Unicode character insertion", ucode);
 
-            if (auto ptr = iter._base(); _range_check(ptr))
+            if (auto ptr = iter._base(); _bad_range_check(ptr))
             {
                 throw out_of_range{ "Given iterator does not point into modifying string" };
             }
@@ -2223,7 +2262,7 @@ namespace utf
             }
             return *this;
         }
-        
+
         /**
          * \brief Inserts the substring into current string
          *
@@ -2231,7 +2270,7 @@ namespace utf
          * \param vi Substring to insert
          *
          * \return Reference to the modified string
-         * 
+         *
          * \throw invalid_argument
         */
         auto insert (size_type pos, view const& vi) -> string&
@@ -2250,17 +2289,17 @@ namespace utf
 
         /**
          * \brief Inserts the substring into current string
-         * 
+         *
          * \param iter Inserting position (by iterator)
          * \param vi Substring to insert
-         * 
+         *
          * \return Reference to the modified string
-         * 
+         *
          * \throw out_of_range
         */
         auto insert (view::iterator const& iter, view const& vi) -> string&
         {
-            if (auto ptr = iter._base(); _range_check(ptr))
+            if (auto ptr = iter._base(); _bad_range_check(ptr))
             {
                 throw out_of_range{ "Given iterator does not point into modifying string" };
             }
@@ -2272,9 +2311,9 @@ namespace utf
 
         /**
          * \brief Applies given mutator to every character in the string
-         * 
+         *
          * \param mutator Character-transforming functor
-         * 
+         *
          * \return Reference to the modified string
         */
 #if __cplusplus >= 2020'00
@@ -2293,7 +2332,7 @@ namespace utf
         {
             string tmp; tmp.reserve(capacity());
 
-            // Remake the string in the temporary location
+            // Remake the string in a temporary location
             auto vi = chars(); for (auto ch : vi)
             {
                 tmp.push(mutator(ch));
@@ -2305,10 +2344,10 @@ namespace utf
 
         /**
          * \brief Replaces all occurences of the given substring by another
-         * 
+         *
          * \param vi Substring pattern to replace
          * \param other Replacing data
-         * 
+         *
          * \return Reference to the modified string
         */
         auto replace_all (view const& vi, view const& other) -> string&
@@ -2332,8 +2371,8 @@ namespace utf
                 tmp.push({ start, match.begin() }).push(other);
                 start = match.end();
             }
-            tmp.push({ start, chs.end() }); // (*)
-            
+            tmp.push({ start, chs.end() });     // (*)
+
             swap(tmp);
 
             return *this;
@@ -2341,12 +2380,12 @@ namespace utf
 
         /**
          * \brief Replaces all characters satisfying specified criteria by another
-         * 
+         *
          * \param pred Checking predicate
          * \param ucode Replacing character
-         * 
+         *
          * \return Reference to the modified string
-         * 
+         *
          * \throw unicode_error
         */
 #if __cplusplus >= 2020'00
@@ -2367,12 +2406,12 @@ namespace utf
 
         /**
          * \brief Replaces all occurences of the given character by another
-         * 
+         *
          * \param what Character to replace
          * \param ucode Replacing character
-         * 
+         *
          * \return Reference to the modified string
-         * 
+         *
          * \throw unicode_error
         */
         auto replace_all (char_type what, char_type ucode) -> string&
@@ -2387,7 +2426,7 @@ namespace utf
 
         /**
          * \brief Completely clears the string by deallocating its owned memory
-         * 
+         *
          * \return Reference to the modified string
         */
         auto clear () noexcept -> string&
@@ -2400,16 +2439,16 @@ namespace utf
 
         /**
          * \brief Removes the character by the iterator
-         * 
+         *
          * \param iter Iterator pointing to the character to remove
-         * 
+         *
          * \return Reference to the modified string
-         * 
+         *
          * \throw out_of_range
         */
         auto erase (view::iterator const& iter) -> string&
         {
-            if (auto ptr = iter._base(); _range_check(ptr) && ptr != bytes_end())
+            if (auto ptr = iter._base(); _bad_range_check(ptr) && ptr != bytes_end())
             {
                 throw out_of_range{ "Given iterator does not point into modifying string" };
             }
@@ -2428,15 +2467,15 @@ namespace utf
          * \param vi View providing the range
          *
          * \return Reference to the modified string
-         * 
+         *
          * \throw out_of_range
         */
         auto erase (view const& vi) -> string&
         {
             if (
                 auto vi_be = vi.begin()._base(), vi_en = vi.end()._base();
-                _range_check(vi_be) ||
-                _range_check(vi_en)
+                _bad_range_check(vi_be) ||
+                _bad_range_check(vi_en)
             ) {
                 throw out_of_range{ "Span error" };
             }
@@ -2457,7 +2496,7 @@ namespace utf
          *
          * \note In actual, just moves `[pos + N; length())` characters in memory buffer to `pos`,
          * i.e., it stays the same internal size. To free up unused memory, call `shrink_to_fit()` after
-         * 
+         *
          * \throw invalid_argument
          * \throw length_error
         */
@@ -2474,13 +2513,12 @@ namespace utf
              *  bytes()       bytes_end()
             */
         }
-        
 
         /**
          * \brief Removes all characters satisfying specified criteria
-         * 
+         *
          * \param pred Checking predicate
-         * 
+         *
          * \return Reference to the modified string
         */
 #if __cplusplus >= 2020'00
@@ -2503,11 +2541,11 @@ namespace utf
 
         /**
          * \brief Removes all occurrences of the characters in the string
-         * 
+         *
          * \param ucodes Characters to remove
-         * 
+         *
          * \return Reference to the modified string
-         * 
+         *
          * \throw unicode_error
         */
 #if __cplusplus >= 2020'00
@@ -2536,9 +2574,9 @@ namespace utf
 
         /**
          * \brief Removes all occurences of the substrings in the current string
-         * 
+         *
          * \param views Substrings to remove
-         * 
+         *
          * \return Reference to the modified string
         */
 #if __cplusplus >= 2020'00
@@ -2570,7 +2608,7 @@ namespace utf
          * \param other New substring
          *
          * \return Reference to the modified string
-         * 
+         *
          * \throw out_of_range
         */
         auto replace (view const& vi, view const& other) -> string&
@@ -2578,7 +2616,7 @@ namespace utf
             auto rsize = vi.size(), osize = other.size();
             auto ptrpos = vi.begin()._base(), tail = vi.end()._base();
 
-            if (_range_check(ptrpos) || _range_check(tail))
+            if (_bad_range_check(ptrpos) || _bad_range_check(tail))
             {
                 throw out_of_range{ "Span error" };
             }
@@ -2623,7 +2661,7 @@ namespace utf
          * \param other New substring
          *
          * \return Reference to the modified string
-         * 
+         *
          * \throw invalid_argument
          * \throw length_error
         */
@@ -2639,7 +2677,7 @@ namespace utf
          * \param ucode New character
          *
          * \return Reference to the modified string
-         * 
+         *
          * \throw invalid_argument
          * \throw unicode_error
         */
@@ -2659,7 +2697,7 @@ namespace utf
          * \param ucode New character
          *
          * \return Reference to the modified string
-         * 
+         *
          * \throw out_of_range
          * \throw unicode_error
         */
@@ -2667,7 +2705,7 @@ namespace utf
         {
             _validate_chars("Replacing by an invalid Unicode character", ucode);
 
-            if (auto ptr = iter._base(); _range_check(ptr))
+            if (auto ptr = iter._base(); _bad_range_check(ptr))
             {
                 throw out_of_range{ "Given iterator does not point into modifying string" };
             }
@@ -2718,7 +2756,7 @@ namespace utf
          *
          * \return Right side of original string, length (`length() - pos`).
          * If `pos >= length()`, returns an empty string
-         * 
+         *
          * \throw invalid_argument
         */
         auto split_off (size_type pos) -> string
@@ -2731,9 +2769,9 @@ namespace utf
 
         /**
          * \brief Removes all characters satisfying specified criteria from both sides of the string
-         * 
-         * \param pred Checking predicate 
-         * 
+         *
+         * \param pred Checking predicate
+         *
          * \return Reference to the modified string
         */
 #if __cplusplus >= 2020'00
@@ -2760,11 +2798,11 @@ namespace utf
 
         /**
          * \brief Removes all occurrences of the given character from both sides of the string
-         * 
+         *
          * \param ucode Unicode character to trim
-         * 
+         *
          * \return Reference to the modified string
-         * 
+         *
          * \throw unicode_error
         */
         auto trim (char_type ucode) -> string&
@@ -2778,7 +2816,7 @@ namespace utf
 
         /**
          * \brief Removes all whitespace-like characters from both sides of the string
-         * 
+         *
          * \return Reference to the modified string
         */
         auto trim () -> string&
@@ -2789,7 +2827,7 @@ namespace utf
         /**
          * \brief Removes the whitespaces from the start and the end and replaces all
          * sequences of internal whitespace with a single space
-         * 
+         *
          * \return Reference to the modified string
         */
         auto simplify () -> string&
@@ -2798,7 +2836,7 @@ namespace utf
             trim();
 
             // Simplifying internal spaces
-            bool series = false;
+            bool spaces = false;
 
             for (
                 pointer current = bytes(), start;
@@ -2807,18 +2845,18 @@ namespace utf
             ) {
                 if (_is_space(_decode(current)))
                 {
-                    if (!series)
+                    if (!spaces)
                     {
                         start = current;
-                        series = true;
+                        spaces = true;
                     }
                 }
-                else if (series)
+                else if (spaces)
                 {
                     replace({ start, current }, " ");
 
                     current = start;
-                    series = false;
+                    spaces = false;
                 }
             }
 
@@ -2848,7 +2886,7 @@ namespace utf
          * \param new_size Expanded size of memory buffer
          *
          * \return Pointer to the end of the old buffer data in the new location
-         * 
+         *
          * \details The new buffer has an extra space after the original content
          * \warning New buffer size must be at least equal to old. Otherwise, it will cause the UB
         */
@@ -2878,9 +2916,9 @@ namespace utf
          *
          * \param where Pointer to the splitting position
          * \param new_size Expanded size of memory buffer
-         * 
+         *
          * \return Pointer to the beginning of the empty area inside the new buffer
-         * 
+         *
          * \warning New buffer size must be at least equal to old. Otherwise, it will cause the UB
         */
         auto _spread (pointer where, size_type new_size) -> pointer
@@ -2911,7 +2949,7 @@ namespace utf
          *
          * \param buf Pointer to the initialization buffer
          * \param count Number of bytes to copy from init-buffer
-         * 
+         *
          * \details In fact, reallocation occurs only if `bufsize` exceeds the actual buffer capacity
         */
         auto _bufinit (void* buf, size_type count) -> void
@@ -2924,7 +2962,7 @@ namespace utf
                 _myfirst = new unit[count];
                 _myend = bytes() + count;
             }
-            
+
             _mylast = bytes() + count;
             std::copy_n((char*)buf, count, bytes());
         }
@@ -2932,11 +2970,11 @@ namespace utf
         /**
          * \internal
          * \brief Calculates the size of the UTF-8-encoded character passed by the pointer
-         * 
+         *
          * \param where Pointer to the character representation inside the buffer
-         * 
+         *
          * \return Number of bytes for character storage
-         * 
+         *
          * \warning Method works correctly with valid UTF-8-encoded characters only
         */
         [[nodiscard]]
@@ -2959,11 +2997,11 @@ namespace utf
         /**
          * \internal
          * \brief Decodes an UTF-8 character
-         * 
+         *
          * \param where Pointer to the character representation inside the buffer
-         * 
+         *
          * \return Characher's codepoint
-         * 
+         *
          * \warning Method works correctly with valid UTF-8-encoded characters only
         */
         [[nodiscard]]
@@ -2990,9 +3028,9 @@ namespace utf
         /**
          * \internal
          * \brief Counts the bytes to store the encoded UTF-8 character by its codepoint
-         * 
+         *
          * \param ucode Unicode character
-         * 
+         *
          * \return Number of bytes
         */
         [[nodiscard]]
@@ -3007,11 +3045,11 @@ namespace utf
         /**
          * \internal
          * \brief Predicate. Checks if `ptr` doesn't point into the string's buffer
-         * 
+         *
          * \param ptr Checking pointer
         */
         [[nodiscard]]
-        auto _range_check (pointer ptr) noexcept -> bool
+        auto _bad_range_check (pointer ptr) noexcept -> bool
         {
             return ptr < bytes() || ptr > bytes_end();
         }
@@ -3019,10 +3057,10 @@ namespace utf
         /**
          * \internal
          * \brief Provokes a `unicode_error` exception throwing in case of any character's invalid codepoint
-         * 
+         *
          * \param exception_msg Message into exception object
          * \param ucodes Unicode characters to check
-         * 
+         *
          * \throw unicode_error
         */
 #if __cplusplus >= 2020'00
@@ -3043,7 +3081,7 @@ namespace utf
         /**
          * \internal
          * \brief Predicate. Returns `true` if the character is ASCII-valid
-         * 
+         *
          * \param ucode Unicode character
          *
          * \note ASCII-subset of Unicode is presented by codepoints 0-127 (`0x00`-`0x7F`)
@@ -3057,7 +3095,7 @@ namespace utf
         /**
          * \internal
          * \brief Predicate. Returns `true` if the character is Unicode-valid
-         * 
+         *
          * \param ucode Unicode character
         */
         [[nodiscard]]
@@ -3069,10 +3107,10 @@ namespace utf
         /**
          * \internal
          * \brief Encodes an UTF-8 character
-         * 
+         *
          * \param dest Destination pointer to the UTF-8 location inside the buffer
          * \param ucode Unicode character to encode
-         * 
+         *
          * \return Pointer to the following byte
         */
         static auto _encode (pointer dest, char_type ucode) noexcept -> pointer
@@ -3104,15 +3142,15 @@ namespace utf
             /*                               dest  single  returning pointer
              * ucode ∈ [0; 0x7F]           ⇒     \╭———˄——╮ ↓
              *                               [... 0_______ ...]
-             * 
+             *
              *                               dest       pair        returning pointer
              * ucode ∈ [0x80; 0x7FF]       ⇒     \╭———————˄———————╮ ↓
              *                               [... 110_____ 10______ ...]
-             * 
+             *
              *                               dest     3-bytes encoding       returning pointer
              * ucode ∈ [0x800; 0xFFFF]     ⇒     \╭————————————˄———————————╮ ↓
              *                               [... 1110____ 10______ 10______ ...]
-             * 
+             *
              *                               dest         4-bytes encoding            returning pointer
              * ucode ∈ [0x10000; 0x10FFFF] ⇒     \╭————————————————˄————————————————╮ ↓
              *                               [... 11110___ 10______ 10______ 10______ ...]
@@ -3122,9 +3160,9 @@ namespace utf
         /**
          * \internal
          * \brief Predicate. Returns `true` if a character is space-qualified
-         * 
+         *
          * \param ucode Checking Unicode character
-         * 
+         *
          * \note Unlike `std::isspace`, this function also matches the Unicode spaces
         */
         [[nodiscard]]
@@ -3161,9 +3199,9 @@ namespace utf
 
     /**
      * \brief Predicate. Returns `true` if a character is space-qualified
-     * 
+     *
      * \param ucode Checking Unicode character
-     * 
+     *
      * \note Unlike `std::isspace`, this function also matches the Unicode spaces
     */
     [[nodiscard]]
@@ -3174,7 +3212,7 @@ namespace utf
 
     /**
      * \brief Predicate. Returns `true` if the character is ASCII-valid
-     * 
+     *
      * \param ucode Checking Unicode character
      *
      * \note ASCII-subset of Unicode is presented by codepoints 0-127 (`0x00`-`0x7F`)
@@ -3186,8 +3224,34 @@ namespace utf
     }
 
     /**
+     * \brief Predicate. Returns `true` if the ASCII-character is in uppercase
+     *
+     * \param ucode Checking Unicode character
+     *
+     * \note ASCII-subset of Unicode is presented by codepoints 0-127 (`0x00`-`0x7F`)
+    */
+    [[nodiscard]]
+    auto is_ascii_upper (string::char_type ucode) noexcept -> bool
+    {
+        return ucode == std::toupper(ucode);
+    }
+
+    /**
+     * \brief Predicate. Returns `true` if the ASCII-character is in lowercase
+     *
+     * \param ucode Checking Unicode character
+     *
+     * \note ASCII-subset of Unicode is presented by codepoints 0-127 (`0x00`-`0x7F`)
+    */
+    [[nodiscard]]
+    auto is_ascii_lower (string::char_type ucode) noexcept -> bool
+    {
+        return ucode == std::tolower(ucode);
+    }
+
+    /**
      * \brief Predicate. Returns `true` if the character is Unicode-valid
-     * 
+     *
      * \param ucode Checking Unicode character
     */
     [[nodiscard]]
@@ -3199,9 +3263,9 @@ namespace utf
     // ANCHOR Char-by-char i/o
     /**
      * \brief Reads an UTF-8 character from an input stream
-     * 
+     *
      * \param in Input stream to read from
-     * 
+     *
      * \return Character's codepoint
     */
     [[nodiscard]]
@@ -3220,7 +3284,7 @@ namespace utf
 
     /**
      * \brief Writes an UTF-8 character into an output stream
-     * 
+     *
      * \param out Output stream to write into
      * \param ucode Unicode character
     */
@@ -3234,10 +3298,10 @@ namespace utf
 
     /**
      * \brief Reads UTF-8 characters from input stream until the first space
-     * 
+     *
      * \param is Reference to the input stream
      * \param to String to store characters
-     * 
+     *
      * \return Reference to the input stream
     */
     auto operator >> (std::istream& is, string& to) -> std::istream&
@@ -3258,10 +3322,10 @@ namespace utf
 
     /**
      * \brief Inserts characters from the view's span into the stream
-     * 
+     *
      * \param os Reference to the output stream
      * \param vi View to insert
-     * 
+     *
      * \return Reference to the output stream
     */
     auto operator << (std::ostream& os, string_view const& vi) -> std::ostream&
@@ -3275,10 +3339,10 @@ namespace utf
 
     /**
      * \brief Inserts characters from the string into the stream
-     * 
+     *
      * \param os Reference to the output stream
      * \param str String to insert
-     * 
+     *
      * \return Reference to the output stream
     */
     auto operator << (std::ostream& os, string const& str) -> std::ostream&
@@ -3288,14 +3352,14 @@ namespace utf
 
     /**
      * \brief Converts the given number into the string according to the specified base
-     * 
+     *
      * \param number Input integral number
      * \param base Conversion base
-     * 
+     *
      * \return String equivalent of `number`
-     * 
+     *
      * \note The value of `base` must be in range [2; 36]. Otherwise, an exception will be thrown
-     * 
+     *
      * \throw invalid_argument
     */
 #if __cplusplus >= 2020'00
@@ -3337,13 +3401,13 @@ namespace utf
 
     /**
      * \brief Converts the given number into the string according to the specified format and precision
-     * 
+     *
      * \param number Input floating-point number
-     * \param format Representation format specifier (`e` or `f`)
+     * \param format Representation format specifier (`e` — scientific or `f` — fixed)
      * \param prec Number's precision
-     * 
+     *
      * \return String equivalent of `number`
-     * 
+     *
      * \throw invalid_argument
     */
 #if __cplusplus >= 2020'00
@@ -3375,7 +3439,7 @@ namespace std
 {
     /**
      * \class iterator_traits <utf::string_view::iterator>
-     * 
+     *
      * \brief Iterator traits specialization for the `utf::string_view::iterator` class
     */
     template<>
@@ -3392,7 +3456,7 @@ namespace std
 
     /**
      * \brief `std::swap` specialization for strings
-     * 
+     *
      * \param s1 First swappable string
      * \param s2 Second swappable string
     */
@@ -3403,7 +3467,7 @@ namespace std
 
     /**
      * \brief `std::swap` specialization for views
-     * 
+     *
      * \param v1 First swappable view
      * \param v2 Second swappable view
     */
@@ -3414,7 +3478,7 @@ namespace std
 
     /**
      * \struct hash <utf::string_view>
-     * 
+     *
      * \brief Hash function object specialization for the `utf::string_view` class
     */
     template<>
@@ -3432,7 +3496,7 @@ namespace std
 
     /**
      * \struct hash <utf::string>
-     * 
+     *
      * \brief Hash function object specialization for the `utf::string` class
     */
     template<>
@@ -3446,4 +3510,26 @@ namespace std
 
 }   // end namespace std
 
-#endif
+#endif  // UTF8CPP_H
+
+// MIT License
+//
+// Copyright (c) 2020 Alex Qzminsky
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
