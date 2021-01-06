@@ -1,13 +1,13 @@
 #pragma once
 
-// Copyright © 2020 Alex Qzminsky.
+// Copyright © 2020-2021 Alex Qzminsky.
 // License: MIT. All rights reserved.
 
 /// \brief Dynamic, contiguous storage of UTF-8-encoded characters set
 ///
 /// \author https://github.com/qzminsky
 /// \version 3.0.0
-/// \date 2020/12/30
+/// \date 2021/01/06
 
 #ifndef UTF8CPP_H
 #define UTF8CPP_H
@@ -3514,7 +3514,7 @@ namespace std
 
 // MIT License
 //
-// Copyright (c) 2020 Alex Qzminsky
+// Copyright (c) 2020-2021 Alex Qzminsky
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
