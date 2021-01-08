@@ -28,7 +28,6 @@ static_assert(__cplusplus >= 2017'00, "C++17 or higher is required");
 #include <iterator>
 #include <limits>
 #include <numeric>
-#include <set>
 #include <sstream>
 #include <stdexcept>
 #include <string>
